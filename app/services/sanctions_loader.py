@@ -15,13 +15,25 @@ class SanctionsLoader:
         dfs = []
 
         for f in sanctions_files:
-            df = pd.read_csv(f)
-            df["source"] = f.stem
-            dfs.append(df)
+            # Skip empty files
+            if f.stat().st_size == 0:
+                continue
+            
+            try:
+                df = pd.read_csv(f)
+                # Check if DataFrame is empty
+                if df.empty:
+                    continue
+                df["source"] = f.stem
+                dfs.append(df)
+            except (pd.errors.EmptyDataError, ValueError) as e:
+                # Skip files that can't be parsed
+                continue
 
         if dfs:
             cls._cache = pd.concat(dfs, ignore_index=True)
         else:
-            cls._cache = pd.DataFrame()
+            # Return empty DataFrame with expected columns
+            cls._cache = pd.DataFrame(columns=["name", "source"])
 
         return cls._cache

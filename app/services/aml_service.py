@@ -1,5 +1,7 @@
-from typing import Dict, Any
+from typing import Dict, Any, List
+import pandas as pd
 from .sanctions_loader import SanctionsLoader
+from .risk_engine import RiskEngine
 from ..core.fuzzy_match import fuzzy_name_match
 
 SIMILARITY_THRESHOLD = 85  # adjustable
@@ -12,33 +14,71 @@ class AMLService:
 
         matches = []
 
-        for _, row in sanctions_df.iterrows():
-            score = fuzzy_name_match(full_name, row["name"])
-            if score >= SIMILARITY_THRESHOLD:
-                matches.append({
-                    "sanctioned_name": row["name"],
-                    "source": row["source"],
-                    "similarity": score,
-                    "dob": row.get("dob", None),
-                    "country": row.get("country", None),
-                })
+        # Only iterate if DataFrame is not empty and has data
+        if not sanctions_df.empty and "name" in sanctions_df.columns:
+            for _, row in sanctions_df.iterrows():
+                # Check if name column exists and has a value
+                if pd.isna(row.get("name")):
+                    continue
+                    
+                score = fuzzy_name_match(full_name, row["name"])
+                if score >= SIMILARITY_THRESHOLD:
+                    # Get confidence level for this match
+                    confidence = RiskEngine.get_confidence_level(score)
+                    
+                    # Additional validation: check DOB if available
+                    dob_match = False
+                    if dob and row.get("dob"):
+                        dob_match = dob.strip() == str(row.get("dob")).strip()
+                    
+                    # Check nationality if available
+                    country_match = False
+                    if nationality and row.get("country"):
+                        country_match = nationality.strip().upper() == str(row.get("country")).strip().upper()
+                    
+                    matches.append({
+                        "sanctioned_name": row["name"],
+                        "source": row.get("source", "unknown"),
+                        "similarity": score,
+                        "confidence": confidence,
+                        "dob": row.get("dob", None),
+                        "dob_match": dob_match if dob else None,
+                        "country": row.get("country", None),
+                        "country_match": country_match if nationality else None,
+                    })
 
-        # Basic risk scoring logic:
+        # Determine match types
+        sanctions_match = len(matches) > 0
+        pep_match = False  # TODO: Implement separate PEP screening
+        
+        # Calculate risk using RiskEngine
+        risk_result = RiskEngine.calculate_aml_risk_score(
+            matches=matches,
+            has_sanctions_match=sanctions_match,
+            has_pep_match=pep_match
+        )
+        
+        # Build details list
+        details = []
         if matches:
-            risk_score = min(100, 50 + len(matches) * 10)
-            pep_match = True  # treat as PEP-like if fuzzy match
-            sanctions_match = True
+            details.append(f"Found {len(matches)} similar name(s)")
+            high_conf_matches = [m for m in matches if m.get("confidence") == "high"]
+            if high_conf_matches:
+                details.append(f"{len(high_conf_matches)} high confidence match(es)")
+            if any(m.get("dob_match") for m in matches if m.get("dob_match") is not None):
+                details.append("DOB match found")
+            if any(m.get("country_match") for m in matches if m.get("country_match") is not None):
+                details.append("Country match found")
         else:
-            risk_score = 5
-            pep_match = False
-            sanctions_match = False
+            details.append("No matches found")
+        
+        details.extend([f"Risk factor: {factor}" for factor in risk_result.get("risk_factors", [])])
 
         return {
             "sanctions_match": sanctions_match,
             "pep_match": pep_match,
-            "risk_score": risk_score,
-            "details": [
-                f"Found {len(matches)} similar names" if matches else "No matches found",
-            ],
+            "risk_score": risk_result["risk_score"],
+            "risk_level": risk_result["risk_level"],
+            "details": details,
             "matches": matches,
         }

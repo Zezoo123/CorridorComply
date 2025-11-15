@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 from ..models.aml import AMLScreenRequest, AMLScreenResponse
+from ..services.aml_service import AMLService
 
 router = APIRouter()
 
