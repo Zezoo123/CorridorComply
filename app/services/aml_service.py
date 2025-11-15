@@ -72,7 +72,12 @@ class AMLService:
         else:
             details.append("No matches found")
         
-        details.extend([f"Risk factor: {factor}" for factor in risk_result.get("risk_factors", [])])
+        # Add risk factor descriptions
+        for factor in risk_result.get("risk_factors", []):
+            if isinstance(factor, dict):
+                details.append(f"{factor.get('description', 'Risk factor detected')}")
+            else:
+                details.append(f"Risk factor: {factor}")
 
         return {
             "sanctions_match": sanctions_match,
