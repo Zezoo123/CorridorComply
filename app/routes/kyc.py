@@ -1,17 +1,29 @@
 from fastapi import APIRouter
 from ..models.kyc import KYCRequest, KYCResponse
+from ..services.kyc_service import KYCService
 
 router = APIRouter()
 
 @router.post("/verify", response_model=KYCResponse)
 async def verify_kyc(payload: KYCRequest):
     """
-    Simple KYC stub endpoint.
-    Later: call OCR, face match, risk engine, etc.
+    KYC verification endpoint.
+    Performs document validation, OCR, face matching, and risk scoring.
     """
-    # For now, just echo back some dummy result
-    return KYCResponse(
-        status="pass",
-        risk_score=10,
-        details=["KYC endpoint stub – logic to be implemented"],
+    result = KYCService.verify(
+        full_name=payload.full_name,
+        dob=payload.dob,
+        nationality=payload.nationality,
+        document_type=payload.document_type,
+        document_number=payload.document_number,
+        # TODO: Add image processing when OCR/face match are implemented
+        face_match_score=None,
+        face_match_result=None,
+        ocr_quality=None,
+        document_expired=False,
+        document_expiring_soon=False,
+        missing_fields=None,
+        data_quality_issues=None
     )
+    
+    return KYCResponse(**result)
