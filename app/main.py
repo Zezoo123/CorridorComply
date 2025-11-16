@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from .routes import health, kyc, aml
+from .routes import health, kyc, aml, risk
 
 def create_app() -> FastAPI:
     app = FastAPI(
@@ -12,6 +12,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router, prefix="", tags=["health"])
     app.include_router(kyc.router, prefix="/kyc", tags=["kyc"])
     app.include_router(aml.router, prefix="/aml", tags=["aml"])
+    app.include_router(risk.router, prefix="/risk", tags=["risk"])
 
     return app
 

@@ -1,1 +1,1 @@
-from . import health, kyc, aml  # noqa: F401
+from . import health, kyc, aml, risk  # noqa: F401
