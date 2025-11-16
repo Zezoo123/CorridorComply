@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from ..models.kyc import KYCRequest, KYCResponse
 from ..services.kyc_service import KYCService
+from ..core.utils import generate_request_id
 
 router = APIRouter()
 
@@ -13,7 +14,10 @@ async def verify_kyc(payload: KYCRequest):
     Validates all fields and returns risk assessment even if some fields are invalid.
     Validation errors are included in the response details.
     """
+    request_id = generate_request_id()
+    
     result = KYCService.verify(
+        request_id=request_id,
         full_name=payload.full_name,
         dob=payload.dob,
         nationality=payload.nationality,

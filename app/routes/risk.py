@@ -6,6 +6,8 @@ from ..models.risk import CombinedRiskRequest, CombinedRiskResponse
 from ..services.risk_engine import RiskEngine
 from ..services.aml_service import AMLService
 from ..services.kyc_service import KYCService
+from ..core.utils import generate_request_id
+from ..core.logger import log_audit_event
 
 router = APIRouter()
 
@@ -22,6 +24,8 @@ async def get_combined_risk(payload: CombinedRiskRequest):
     
     The combined risk score weights AML at 60% and KYC at 40% when both are provided.
     """
+    request_id = generate_request_id()
+    
     aml_risk_data = None
     kyc_risk_data = None
     details = []
@@ -38,6 +42,7 @@ async def get_combined_risk(payload: CombinedRiskRequest):
     elif payload.aml_data:
         # Calculate AML risk from raw data using the service
         aml_result = AMLService.screen(
+            request_id=request_id,
             full_name=payload.aml_data.full_name,
             dob=payload.aml_data.dob,
             nationality=payload.aml_data.nationality
@@ -96,6 +101,7 @@ async def get_combined_risk(payload: CombinedRiskRequest):
     elif payload.kyc_data:
         # Calculate KYC risk from raw data
         kyc_result = KYCService.verify(
+            request_id=request_id,
             full_name=payload.kyc_data.full_name,
             dob=payload.kyc_data.dob,
             nationality=payload.kyc_data.nationality,
@@ -158,7 +164,8 @@ async def get_combined_risk(payload: CombinedRiskRequest):
     if kyc_factors:
         details.append(f"KYC risk factors: {len(kyc_factors)}")
     
-    return CombinedRiskResponse(
+    response = CombinedRiskResponse(
+        request_id=request_id,
         combined_risk_score=combined_result["risk_score"],
         combined_risk_level=combined_result["risk_level"],
         risk_factors=combined_result["risk_factors"],
@@ -168,4 +175,23 @@ async def get_combined_risk(payload: CombinedRiskRequest):
         kyc_risk_level=kyc_risk_data.get("risk_level") if kyc_risk_data else None,
         details=details
     )
+    
+    # Log audit event for combined risk
+    log_audit_event(
+        request_id=request_id,
+        check_type="risk",
+        action="combined",
+        result={
+            "combined_risk_score": combined_result["risk_score"],
+            "combined_risk_level": combined_result["risk_level"].value,
+            "aml_risk_score": aml_risk_data.get("risk_score") if aml_risk_data else None,
+            "kyc_risk_score": kyc_risk_data.get("risk_score") if kyc_risk_data else None
+        },
+        metadata={
+            "has_aml_data": payload.aml_data is not None or payload.aml_risk is not None,
+            "has_kyc_data": payload.kyc_data is not None or payload.kyc_risk is not None
+        }
+    )
+    
+    return response
 
