@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from ..models.kyc import KYCRequest, KYCResponse
 from ..services.kyc_service import KYCService
 
@@ -9,6 +9,9 @@ async def verify_kyc(payload: KYCRequest):
     """
     KYC verification endpoint.
     Performs document validation, OCR, face matching, and risk scoring.
+    
+    Validates all fields and returns risk assessment even if some fields are invalid.
+    Validation errors are included in the response details.
     """
     result = KYCService.verify(
         full_name=payload.full_name,
