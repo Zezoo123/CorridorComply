@@ -3,13 +3,14 @@ import pandas as pd
 from .sanctions_loader import SanctionsLoader
 from .risk_engine import RiskEngine
 from ..core.fuzzy_match import fuzzy_name_match
+from ..core.logger import log_audit_event
 
 SIMILARITY_THRESHOLD = 85  # adjustable
 
 class AMLService:
 
     @staticmethod
-    def screen(full_name: str, dob: str, nationality: str) -> Dict[str, Any]:
+    def screen(request_id: str, full_name: str, dob: str, nationality: str) -> Dict[str, Any]:
         sanctions_df = SanctionsLoader.load_sanctions()
 
         matches = []
@@ -79,7 +80,8 @@ class AMLService:
             else:
                 details.append(f"Risk factor: {factor}")
 
-        return {
+        result = {
+            "request_id": request_id,
             "sanctions_match": sanctions_match,
             "pep_match": pep_match,
             "risk_score": risk_result["risk_score"],
@@ -87,3 +89,23 @@ class AMLService:
             "details": details,
             "matches": matches,
         }
+        
+        # Log audit event
+        log_audit_event(
+            request_id=request_id,
+            check_type="aml",
+            action="screen",
+            result={
+                "sanctions_match": sanctions_match,
+                "pep_match": pep_match,
+                "risk_score": risk_result["risk_score"],
+                "risk_level": risk_result["risk_level"].value,
+                "match_count": len(matches)
+            },
+            metadata={
+                "full_name": full_name,
+                "nationality": nationality
+            }
+        )
+        
+        return result

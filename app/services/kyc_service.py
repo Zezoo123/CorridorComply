@@ -4,6 +4,7 @@ KYC (Know Your Customer) service
 from typing import Dict, Any, Optional, List
 from .risk_engine import RiskEngine
 from ..core.validation import FieldValidator
+from ..core.logger import log_audit_event
 
 
 class KYCService:
@@ -11,6 +12,7 @@ class KYCService:
     
     @staticmethod
     def verify(
+        request_id: str,
         full_name: str,
         dob: str,
         nationality: str,
@@ -138,10 +140,30 @@ class KYCService:
             if isinstance(factor, dict):
                 details.append(factor.get("description", "Risk factor detected"))
         
-        return {
+        result = {
+            "request_id": request_id,
             "status": status,
             "risk_score": risk_result["risk_score"],
             "risk_level": risk_result["risk_level"],
             "details": details
         }
+        
+        # Log audit event
+        log_audit_event(
+            request_id=request_id,
+            check_type="kyc",
+            action="verify",
+            result={
+                "status": status,
+                "risk_score": risk_result["risk_score"],
+                "risk_level": risk_result["risk_level"].value
+            },
+            metadata={
+                "document_type": document_type,
+                "nationality": nationality,
+                "has_face_match": face_match_result is not None
+            }
+        )
+        
+        return result
 
