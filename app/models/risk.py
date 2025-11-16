@@ -69,6 +69,7 @@ class CombinedRiskRequest(BaseModel):
 
 class CombinedRiskResponse(BaseModel):
     """Combined risk assessment response"""
+    request_id: str = Field(..., example="550e8400-e29b-41d4-a716-446655440000")
     combined_risk_score: int = Field(..., ge=0, le=100, example=65)
     combined_risk_level: RiskLevel = Field(..., example=RiskLevel.MEDIUM)
     risk_factors: List[Dict[str, Any]] = Field(default_factory=list)

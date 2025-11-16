@@ -11,6 +11,7 @@ class KYCRequest(BaseModel):
     # Later we'll accept base64 images or file uploads for doc/selfie
 
 class KYCResponse(BaseModel):
+    request_id: str = Field(..., example="550e8400-e29b-41d4-a716-446655440000")
     status: str = Field(..., example="pass")  # "pass" | "fail" | "review"
     risk_score: int = Field(..., ge=0, le=100, example=15)
     risk_level: RiskLevel = RiskLevel.LOW

@@ -18,6 +18,7 @@ class AMLScreenRequest(BaseModel):
     nationality: str = Field(..., example="QA")
 
 class AMLScreenResponse(BaseModel):
+    request_id: str = Field(..., example="550e8400-e29b-41d4-a716-446655440000")
     sanctions_match: bool = False
     pep_match: bool = False
     risk_score: int = Field(..., ge=0, le=100, example=5)
