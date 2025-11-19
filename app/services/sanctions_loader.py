@@ -11,7 +11,12 @@ class SanctionsLoader:
         if cls._cache is not None:
             return cls._cache
 
-        sanctions_files = SANCTIONS_DIR.glob("*.csv")
+        # Look for CSV files in normalized subdirectories
+        normalized_dir = SANCTIONS_DIR / "normalized"
+        sanctions_files = []
+        for subdir in ["un", "ofac", "uk", "eu"]:
+            sanctions_files.extend((normalized_dir / subdir).glob("*.csv"))
+        
         dfs = []
 
         for f in sanctions_files:
@@ -24,7 +29,10 @@ class SanctionsLoader:
                 # Check if DataFrame is empty
                 if df.empty:
                     continue
-                df["source"] = f.stem
+                
+                # Extract source from parent directory name (un, ofac, uk, eu)
+                source = f.parent.name.upper()
+                df["source"] = source
                 dfs.append(df)
             except (pd.errors.EmptyDataError, ValueError) as e:
                 # Skip files that can't be parsed

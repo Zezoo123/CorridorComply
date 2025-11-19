@@ -303,8 +303,8 @@ def main():
     # Paths
     script_dir = Path(__file__).parent
     project_root = script_dir.parent
-    xml_file = project_root / "app" / "data" / "sanctions" / "consolidatedLegacyByPRN.xml"
-    csv_file = project_root / "app" / "data" / "sanctions" / "un_sanctions.csv"
+    xml_file = project_root / "app" / "data" / "sanctions" / "raw" / "un" / "consolidatedLegacyByPRN.xml"
+    csv_file = project_root / "app" / "data" / "sanctions" / "normalized" / "un" / "un_sanctions.csv"
     
     if not xml_file.exists():
         print(f"Error: XML file not found: {xml_file}")
