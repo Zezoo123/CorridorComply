@@ -40,7 +40,7 @@ def log_audit_event(
         "check_type": check_type,
         "action": action,
         "result": result,
-        "metadata": metadata or {}
+        "metadata": metadata if metadata != None else {}
     }
     
     # Write to daily log file
