@@ -18,7 +18,7 @@ class KYCResponse(BaseModel):
     details: List[str] = Field(default_factory=list)
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "status": "pass",
                 "risk_score": 15,
