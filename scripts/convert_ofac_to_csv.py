@@ -2,16 +2,211 @@
 """
 Convert OFAC sanctions CSV files to normalized format
 Combines sdn.csv, alt.csv, and add.csv into a single normalized CSV file
-compatible with UN sanctions CSV schema.
+with consistent schema matching the EU sanctions format.
 """
+import os
+import re
+import sys
+import logging
+import unicodedata
 import pandas as pd
 from pathlib import Path
-from typing import Dict, List, Optional
-import logging
+from typing import Dict, List, Optional, Set, Tuple, Any
+from datetime import datetime, date
+from collections import defaultdict
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('sanctions_processing.log')
+    ]
+)
 logger = logging.getLogger(__name__)
+
+# ISO 3166-1 alpha-2 country codes (uppercase)
+COUNTRY_CODES = {
+    # Standard country codes
+    'AF': 'AFGHANISTAN', 'AL': 'ALBANIA', 'DZ': 'ALGERIA', 'AD': 'ANDORRA',
+    'AO': 'ANGOLA', 'AG': 'ANTIGUA AND BARBUDA', 'AR': 'ARGENTINA', 
+    'AM': 'ARMENIA', 'AU': 'AUSTRALIA', 'AT': 'AUSTRIA', 'AZ': 'AZERBAIJAN',
+    'BS': 'BAHAMAS', 'BH': 'BAHRAIN', 'BD': 'BANGLADESH', 'BB': 'BARBADOS',
+    'BY': 'BELARUS', 'BE': 'BELGIUM', 'BZ': 'BELIZE', 'BJ': 'BENIN',
+    'BT': 'BHUTAN', 'BO': 'BOLIVIA', 'BA': 'BOSNIA AND HERZEGOVINA',
+    'BW': 'BOTSWANA', 'BR': 'BRAZIL', 'BN': 'BRUNEI DARUSSALAM',
+    'BG': 'BULGARIA', 'BF': 'BURKINA FASO', 'BI': 'BURUNDI',
+    'CV': 'CABO VERDE', 'KH': 'CAMBODIA', 'CM': 'CAMEROON', 'CA': 'CANADA',
+    'CF': 'CENTRAL AFRICAN REPUBLIC', 'TD': 'CHAD', 'CL': 'CHILE',
+    'CN': 'CHINA', 'CO': 'COLOMBIA', 'KM': 'COMOROS', 'CG': 'CONGO',
+    'CD': 'CONGO, THE DEMOCRATIC REPUBLIC OF THE', 'CR': 'COSTA RICA',
+    'CI': "COTE D'IVOIRE", 'HR': 'CROATIA', 'CU': 'CUBA', 'CY': 'CYPRUS',
+    'CZ': 'CZECH REPUBLIC', 'DK': 'DENMARK', 'DJ': 'DJIBOUTI',
+    'DM': 'DOMINICA', 'DO': 'DOMINICAN REPUBLIC', 'EC': 'ECUADOR',
+    'EG': 'EGYPT', 'SV': 'EL SALVADOR', 'GQ': 'EQUATORIAL GUINEA',
+    'ER': 'ERITREA', 'EE': 'ESTONIA', 'SZ': 'ESWATINI', 'ET': 'ETHIOPIA',
+    'FJ': 'FIJI', 'FI': 'FINLAND', 'FR': 'FRANCE', 'GA': 'GABON',
+    'GM': 'GAMBIA', 'GE': 'GEORGIA', 'DE': 'GERMANY', 'GH': 'GHANA',
+    'GR': 'GREECE', 'GD': 'GRENADA', 'GT': 'GUATEMALA', 'GN': 'GUINEA',
+    'GW': 'GUINEA-BISSAU', 'GY': 'GUYANA', 'HT': 'HAITI',
+    'HN': 'HONDURAS', 'HU': 'HUNGARY', 'IS': 'ICELAND', 'IN': 'INDIA',
+    'ID': 'INDONESIA', 'IR': 'IRAN, ISLAMIC REPUBLIC OF', 'IQ': 'IRAQ',
+    'IE': 'IRELAND', 'IL': 'ISRAEL', 'IT': 'ITALY', 'JM': 'JAMAICA',
+    'JP': 'JAPAN', 'JO': 'JORDAN', 'KZ': 'KAZAKHSTAN', 'KE': 'KENYA',
+    'KI': 'KIRIBATI', 'KP': "KOREA, DEMOCRATIC PEOPLE'S REPUBLIC OF",
+    'KR': 'KOREA, REPUBLIC OF', 'XK': 'KOSOVO', 'KW': 'KUWAIT',
+    'KG': 'KYRGYZSTAN', 'LA': "LAO PEOPLE'S DEMOCRATIC REPUBLIC",
+    'LV': 'LATVIA', 'LB': 'LEBANON', 'LS': 'LESOTHO', 'LR': 'LIBERIA',
+    'LY': 'LIBYA', 'LI': 'LIECHTENSTEIN', 'LT': 'LITHUANIA',
+    'LU': 'LUXEMBOURG', 'MG': 'MADAGASCAR', 'MW': 'MALAWI',
+    'MY': 'MALAYSIA', 'MV': 'MALDIVES', 'ML': 'MALI', 'MT': 'MALTA',
+    'MH': 'MARSHALL ISLANDS', 'MR': 'MAURITANIA', 'MU': 'MAURITIUS',
+    'MX': 'MEXICO', 'FM': 'MICRONESIA, FEDERATED STATES OF',
+    'MD': 'MOLDOVA, REPUBLIC OF', 'MC': 'MONACO', 'MN': 'MONGOLIA',
+    'ME': 'MONTENEGRO', 'MA': 'MOROCCO', 'MZ': 'MOZAMBIQUE',
+    'MM': 'MYANMAR', 'NA': 'NAMIBIA', 'NR': 'NAURU', 'NP': 'NEPAL',
+    'NL': 'NETHERLANDS', 'NZ': 'NEW ZEALAND', 'NI': 'NICARAGUA',
+    'NE': 'NIGER', 'NG': 'NIGERIA', 'MK': 'NORTH MACEDONIA',
+    'NO': 'NORWAY', 'OM': 'OMAN', 'PK': 'PAKISTAN', 'PW': 'PALAU',
+    'PA': 'PANAMA', 'PG': 'PAPUA NEW GUINEA', 'PY': 'PARAGUAY',
+    'PE': 'PERU', 'PH': 'PHILIPPINES', 'PL': 'POLAND', 'PT': 'PORTUGAL',
+    'QA': 'QATAR', 'RO': 'ROMANIA', 'RU': 'RUSSIAN FEDERATION',
+    'RW': 'RWANDA', 'KN': 'SAINT KITTS AND NEVIS', 'LC': 'SAINT LUCIA',
+    'VC': 'SAINT VINCENT AND THE GRENADINES', 'WS': 'SAMOA',
+    'SM': 'SAN MARINO', 'ST': 'SAO TOME AND PRINCIPE',
+    'SA': 'SAUDI ARABIA', 'SN': 'SENEGAL', 'RS': 'SERBIA',
+    'SC': 'SEYCHELLES', 'SL': 'SIERRA LEONE', 'SG': 'SINGAPORE',
+    'SK': 'SLOVAKIA', 'SI': 'SLOVENIA', 'SB': 'SOLOMON ISLANDS',
+    'SO': 'SOMALIA', 'ZA': 'SOUTH AFRICA', 'SS': 'SOUTH SUDAN',
+    'ES': 'SPAIN', 'LK': 'SRI LANKA', 'SD': 'SUDAN', 'SR': 'SURINAME',
+    'SE': 'SWEDEN', 'CH': 'SWITZERLAND', 'SY': 'SYRIAN ARAB REPUBLIC',
+    'TW': 'TAIWAN, PROVINCE OF CHINA', 'TJ': 'TAJIKISTAN',
+    'TZ': 'TANZANIA, UNITED REPUBLIC OF', 'TH': 'THAILAND',
+    'TL': 'TIMOR-LESTE', 'TG': 'TOGO', 'TO': 'TONGA',
+    'TT': 'TRINIDAD AND TOBAGO', 'TN': 'TUNISIA', 'TR': 'TURKEY',
+    'TM': 'TURKMENISTAN', 'TV': 'TUVALU', 'UG': 'UGANDA',
+    'UA': 'UKRAINE', 'AE': 'UNITED ARAB EMIRATES',
+    'GB': 'UNITED KINGDOM', 'US': 'UNITED STATES',
+    'UY': 'URUGUAY', 'UZ': 'UZBEKISTAN', 'VU': 'VANUATU',
+    'VA': 'HOLY SEE (VATICAN CITY STATE)', 'VE': 'VENEZUELA, BOLIVARIAN REPUBLIC OF',
+    'VN': 'VIET NAM', 'YE': 'YEMEN', 'ZM': 'ZAMBIA', 'ZW': 'ZIMBABWE',
+    
+    # Additional common variations
+    'UK': 'UNITED KINGDOM', 'USA': 'UNITED STATES', 'UAE': 'UNITED ARAB EMIRATES',
+    'U.S.': 'UNITED STATES', 'U.K.': 'UNITED KINGDOM', 'U.S.A.': 'UNITED STATES',
+    'U.S.A': 'UNITED STATES', 'U.S': 'UNITED STATES', 'UKRAINIAN': 'UKRAINE',
+    'RUSSIAN': 'RUSSIAN FEDERATION', 'IRANIAN': 'IRAN, ISLAMIC REPUBLIC OF',
+    'SYRIAN': 'SYRIAN ARAB REPUBLIC', 'CHINESE': 'CHINA', 'CUBAN': 'CUBA',
+    'NORTH KOREAN': "KOREA, DEMOCRATIC PEOPLE'S REPUBLIC OF",
+    'SOUTH KOREAN': 'KOREA, REPUBLIC OF', 'VIETNAMESE': 'VIET NAM',
+    'BURMESE': 'MYANMAR', 'LAO': "LAO PEOPLE'S DEMOCRATIC REPUBLIC",
+    'IRAQI': 'IRAQ', 'SUDANESE': 'SUDAN', 'YEMENI': 'YEMEN',
+    'SOMALI': 'SOMALIA', 'LIBYAN': 'LIBYA', 'LEBANESE': 'LEBANON',
+    'PALESTINIAN': 'PALESTINE, STATE OF', 'TAIWANESE': 'TAIWAN, PROVINCE OF CHINA',
+    'HONG KONG': 'HONG KONG, CHINA', 'MACAU': 'MACAO, CHINA',
+    'MACAO': 'MACAO, CHINA', 'BURMA': 'MYANMAR',
+    
+    # Special cases
+    '00': 'UNKNOWN', 'XX': 'UNKNOWN', 'ZZ': 'UNKNOWN', 'N/A': 'UNKNOWN',
+    'NONE': 'UNKNOWN', 'UNKNOWN': 'UNKNOWN', 'VARIOUS': 'MULTIPLE',
+    'MULTIPLE': 'MULTIPLE', 'SEVERAL': 'MULTIPLE', 'VARIOUS COUNTRIES': 'MULTIPLE',
+    'SEVERAL COUNTRIES': 'MULTIPLE', 'MULTIPLE COUNTRIES': 'MULTIPLE',
+    'STATELESS': 'STATELESS', 'NO NATIONALITY': 'STATELESS',
+    'NO CITIZENSHIP': 'STATELESS', 'UNDETERMINED': 'UNKNOWN',
+    'NOT SPECIFIED': 'UNKNOWN', 'NOT KNOWN': 'UNKNOWN',
+    'NOT AVAILABLE': 'UNKNOWN', 'NONE SPECIFIED': 'UNKNOWN',
+    'NO NATIONALITY': 'STATELESS', 'NO CITIZENSHIP': 'STATELESS',
+    'NO NATIONALITY': 'STATELESS', 'NO CITIZENSHIP': 'STATELESS',
+    'NO NATIONALITY': 'STATELESS', 'NO CITIZENSHIP': 'STATELESS',
+    'NO NATIONALITY': 'STATELESS', 'NO CITIZENSHIP': 'STATELESS',
+    'NO NATIONALITY': 'STATELESS', 'NO CITIZENSHIP': 'STATELESS',
+}
+
+# Reverse mapping from country name to ISO code
+COUNTRY_NAMES = {v.upper(): k for k, v in COUNTRY_CODES.items()}
+
+# Add common alternative spellings and names
+ALTERNATIVE_NAMES = {
+    'RUSSIA': 'RUSSIAN FEDERATION',
+    'IRAN': 'IRAN, ISLAMIC REPUBLIC OF',
+    'SOUTH KOREA': 'KOREA, REPUBLIC OF',
+    'NORTH KOREA': "KOREA, DEMOCRATIC PEOPLE'S REPUBLIC OF",
+    'LAOS': "LAO PEOPLE'S DEMOCRATIC REPUBLIC",
+    'BOSNIA': 'BOSNIA AND HERZEGOVINA',
+    'BURMA': 'MYANMAR',
+    'CZECHIA': 'CZECH REPUBLIC',
+    'MACEDONIA': 'NORTH MACEDONIA',
+    'PALESTINE': 'PALESTINE, STATE OF',
+    'REPUBLIC OF THE CONGO': 'CONGO',
+    'DEMOCRATIC REPUBLIC OF THE CONGO': 'CONGO, THE DEMOCRATIC REPUBLIC OF THE',
+    'EAST TIMOR': 'TIMOR-LESTE',
+    'SWAZILAND': 'ESWATINI',
+    'IVORY COAST': "COTE D'IVOIRE",
+    'CAPE VERDE': 'CABO VERDE',
+    'VIETNAM': 'VIET NAM',
+    'TAIWAN': 'TAIWAN, PROVINCE OF CHINA',
+    'VATICAN': 'HOLY SEE (VATICAN CITY STATE)',
+    'VATICAN CITY': 'HOLY SEE (VATICAN CITY STATE)',
+    'HOLY SEE': 'HOLY SEE (VATICAN CITY STATE)',
+    'UNITED STATES OF AMERICA': 'UNITED STATES',
+    'USA': 'UNITED STATES',
+    'US': 'UNITED STATES',
+    'UK': 'UNITED KINGDOM',
+    'UAE': 'UNITED ARAB EMIRATES',
+    'DPRK': "KOREA, DEMOCRATIC PEOPLE'S REPUBLIC OF",
+    'ROK': 'KOREA, REPUBLIC OF',
+    'PRK': "KOREA, DEMOCRATIC PEOPLE'S REPUBLIC OF",
+    'VENEZUELA': 'VENEZUELA, BOLIVARIAN REPUBLIC OF',
+    'BOLIVIA': 'BOLIVIA, PLURINATIONAL STATE OF',
+    'MOLDOVA': 'MOLDOVA, REPUBLIC OF',
+    'TANZANIA': 'TANZANIA, UNITED REPUBLIC OF',
+    'MICRONESIA': 'MICRONESIA, FEDERATED STATES OF',
+    'FEDERATED STATES OF MICRONESIA': 'MICRONESIA, FEDERATED STATES OF',
+    'ST. VINCENT AND THE GRENADINES': 'SAINT VINCENT AND THE GRENADINES',
+    'ST. KITTS AND NEVIS': 'SAINT KITTS AND NEVIS',
+    'ST. LUCIA': 'SAINT LUCIA',
+    'ST. VINCENT & THE GRENADINES': 'SAINT VINCENT AND THE GRENADINES',
+    'ST. KITTS & NEVIS': 'SAINT KITTS AND NEVIS',
+    'SAO TOME': 'SAO TOME AND PRINCIPE',
+    'SAO TOME & PRINCIPE': 'SAO TOME AND PRINCIPE',
+    'SAINT VINCENT': 'SAINT VINCENT AND THE GRENADINES',
+    'SAINT KITTS': 'SAINT KITTS AND NEVIS',
+    'SAINT LUCIA': 'SAINT LUCIA',
+    'SAINT VINCENT & GRENADINES': 'SAINT VINCENT AND THE GRENADINES',
+    'SAINT KITTS & NEVIS': 'SAINT KITTS AND NEVIS',
+    'SAINT LUCIA': 'SAINT LUCIA',
+    'SVALBARD AND JAN MAYEN': 'NORWAY',
+    'BRITISH VIRGIN ISLANDS': 'VIRGIN ISLANDS, BRITISH',
+    'US VIRGIN ISLANDS': 'VIRGIN ISLANDS, U.S.',
+    'U.S. VIRGIN ISLANDS': 'VIRGIN ISLANDS, U.S.',
+    'UNITED STATES VIRGIN ISLANDS': 'VIRGIN ISLANDS, U.S.',
+    'BRITISH VIRGIN ISLANDS': 'VIRGIN ISLANDS, BRITISH',
+    'U.S. MINOR OUTLYING ISLANDS': 'UNITED STATES MINOR OUTLYING ISLANDS',
+    'U.S. OUTLYING ISLANDS': 'UNITED STATES MINOR OUTLYING ISLANDS',
+    'UNITED STATES MINOR OUTLYING ISLANDS': 'UNITED STATES MINOR OUTLYING ISLANDS',
+    'UNITED STATES OUTLYING ISLANDS': 'UNITED STATES MINOR OUTLYING ISLANDS',
+    'U.S. MINOR ISLANDS': 'UNITED STATES MINOR OUTLYING ISLANDS',
+    'UNITED STATES MINOR ISLANDS': 'UNITED STATES MINOR OUTLYING ISLANDS',
+    'U.S. PACIFIC ISLANDS': 'UNITED STATES MINOR OUTLYING ISLANDS',
+    'UNITED STATES PACIFIC ISLANDS': 'UNITED STATES MINOR OUTLYING ISLANDS',
+    'U.S. PACIFIC TERRITORIES': 'UNITED STATES MINOR OUTLYING ISLANDS',
+    'UNITED STATES PACIFIC TERRITORIES': 'UNITED STATES MINOR OUTLYING ISLANDS',
+    'U.S. TERRITORIES': 'UNITED STATES MINOR OUTLYING ISLANDS',
+    'UNITED STATES TERRITORIES': 'UNITED STATES MINOR OUTLYING ISLANDS',
+    'U.S. TERRITORY': 'UNITED STATES MINOR OUTLYING ISLANDS',
+    'UNITED STATES TERRITORY': 'UNITED STATES MINOR OUTLYING ISLANDS',
+    'U.S. ISLANDS': 'UNITED STATES MINOR OUTLYING ISLANDS',
+    'UNITED STATES ISLANDS': 'UNITED STATES MINOR OUTLYING ISLANDS',
+    'U.S. ISLAND TERRITORIES': 'UNITED STATES MINOR OUTLYING ISLANDS',
+    'UNITED STATES ISLAND TERRITORIES': 'UNITED STATES MINOR OUTLYING ISLANDS',
+    'U.S. ISLAND TERRITORY': 'UNITED STATES MINOR OUTLYING ISLANDS',
+    'UNITED STATES ISLAND TERRITORY': 'UNITED STATES MINOR OUTLYING ISLANDS',
+    'U.S. PACIFIC ISLAND TERRITORIES': 'UNITED STATES MINOR OUTLYING ISLANDS',
+    'UNITED STATES PACIFIC ISLAND TERRITORIES': 'UNITED STATES MINOR OUTLYING ISLANDS',
+    'U.S. PACIFIC ISLAND TERRITORY': 'UNITED STATES MINOR OUTLYING ISLANDS',
+    'UNITED STATES PACIFIC ISLAND TERRITORY': 'UNITED STATES MINOR OUTLYING ISLANDS'
+}
 
 
 def split_name_parts(name: str) -> Dict[str, str]:
@@ -263,9 +458,72 @@ def load_add_data(add_path: Path) -> pd.DataFrame:
         return pd.DataFrame()
 
 
+def extract_nationalities(text: str) -> List[str]:
+    """Extract country names and codes from text and return normalized country names."""
+    if not text or not isinstance(text, str):
+        return []
+    
+    nationalities = set()
+    text_upper = text.upper()
+    
+    # First check for country codes
+    for code, name in COUNTRY_CODES.items():
+        if len(code) == 2 and f' {code} ' in f' {text_upper} ':
+            nationalities.add(name)
+    
+    # Then check for country names and alternative names
+    for name in COUNTRY_NAMES:
+        if name in text_upper and len(name) > 3:  # Avoid matching short names like 'and', 'the'
+            nationalities.add(name)
+    
+    # Check alternative names
+    for alt_name, std_name in ALTERNATIVE_NAMES.items():
+        if alt_name in text_upper:
+            nationalities.add(std_name)
+    
+    # Clean up results
+    cleaned = set()
+    for nat in nationalities:
+        # Skip common false positives
+        if len(nat) <= 3 and nat not in ['USA', 'UAE', 'UK']:
+            continue
+        cleaned.add(nat)
+    
+    return sorted(cleaned)
+
+def clean_address(address: str) -> str:
+    """Clean and standardize address string."""
+    if not address or not isinstance(address, str):
+        return ""
+    
+    # Remove extra whitespace and normalize unicode
+    address = ' '.join(address.split())
+    address = unicodedata.normalize('NFKC', address)
+    
+    # Standardize common address components
+    replacements = {
+        r'\bSTREET\b': 'ST',
+        r'\bAVENUE\b': 'AVE',
+        r'\bBOULEVARD\b': 'BLVD',
+        r'\bROAD\b': 'RD',
+        r'\bDRIVE\b': 'DR',
+        r'\bLANE\b': 'LN',
+        r'\bSUITE\b': 'STE',
+        r'\bAPARTMENT\b': 'APT',
+        r'\bFLOOR\b': 'FL',
+        r'\bUNITED STATES(?: OF AMERICA)?\b': 'USA',
+        r'\bUNITED KINGDOM\b': 'UK',
+        r'\bUNITED ARAB EMIRATES\b': 'UAE'
+    }
+    
+    for pattern, repl in replacements.items():
+        address = re.sub(pattern, repl, address, flags=re.IGNORECASE)
+    
+    return address.strip()
+
 def create_normalized_ofac_data(sdn_df: pd.DataFrame, alt_df: pd.DataFrame, add_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Create normalized OFAC sanctions data compatible with UN sanctions schema
+    Create normalized OFAC sanctions data with enhanced field extraction.
     """
     logger.info("Creating normalized OFAC data")
     
@@ -273,105 +531,101 @@ def create_normalized_ofac_data(sdn_df: pd.DataFrame, alt_df: pd.DataFrame, add_
         logger.error("No SDN data available")
         return pd.DataFrame()
     
-    # Start with SDN data as base
+    # Make a copy of the input dataframes to avoid modifying originals
     result_df = sdn_df.copy()
     
-    # Log available columns for debugging
-    logger.info(f"SDN columns available: {list(result_df.columns)}")
-    
-    # Ensure we have the required columns
-    if 'ent_num' not in result_df.columns:
-        logger.error("ent_num column not found in SDN data")
-        return pd.DataFrame()
-    
-    if 'sdn_name' not in result_df.columns:
-        logger.error("sdn_name column not found in SDN data")
-        return pd.DataFrame()
-    
-    # Split primary name into components
+    # Clean and standardize names
+    result_df['sdn_name'] = result_df['sdn_name'].str.upper().str.strip()
     name_components = result_df['sdn_name'].apply(split_name_parts)
     name_df = pd.DataFrame(name_components.tolist())
     result_df = pd.concat([result_df.reset_index(drop=True), name_df], axis=1)
     
-    # Process aliases
+    # Process aliases and extract additional nationalities
+    nationalities = {}
     if not alt_df.empty and 'ent_num' in alt_df.columns:
-        logger.info("Processing aliases")
-        logger.info(f"ALT columns available: {list(alt_df.columns)}")
+        # Clean alias names
+        alt_df['alt_name'] = alt_df['alt_name'].str.upper().str.strip()
+        alt_df['alt_reg_date'] = alt_df['alt_reg_date'].str.upper().str.strip()
         
-        # Debug: Show sample of ALT data
-        logger.info(f"Sample ALT data:")
-        for idx, row in alt_df.head(5).iterrows():
-            logger.info(f"  ent_num: {row['ent_num']}, alt_type: {row['alt_type']}, alt_name: {repr(row['alt_name'])}, alt_reg_date: {repr(row['alt_reg_date'])}")
-        
-        # Group aliases by ent_num
-        # The actual alias name is in column 'alt_reg_date' (4th column), not 'alt_name'
-        alias_groups = alt_df.groupby('ent_num')['alt_reg_date'].apply(lambda x: '; '.join(filter(None, x.astype(str))))
+        # Group aliases by entity
+        alias_groups = alt_df.groupby('ent_num').apply(
+            lambda x: '; '.join(filter(None, set(x['alt_reg_date'].dropna())))
+        )
         result_df['aliases'] = result_df['ent_num'].map(alias_groups).fillna('')
         
-        # Debug: Show sample of grouped aliases
-        logger.info(f"Sample grouped aliases:")
-        for ent_num, aliases in alias_groups.head(5).items():
-            logger.info(f"  ent_num {ent_num}: {repr(aliases)}")
+        # Extract nationalities from aliases
+        for ent_num, group in alt_df.groupby('ent_num'):
+            alias_text = ' '.join(str(x) for x in group['alt_reg_date'].dropna().values)
+            nationalities[ent_num] = extract_nationalities(alias_text)
     else:
-        logger.warning("No ALT data available")
         result_df['aliases'] = ''
     
-    # Group addresses by ent_num
+    # Process addresses and extract countries
+    addresses = {}
     if not add_df.empty:
-        logger.info("Processing addresses")
-        logger.info(f"ADD columns available: {list(add_df.columns)}")
+        # Clean address components
+        for col in ['address', 'city_state_zip', 'country']:
+            if col in add_df.columns:
+                add_df[col] = add_df[col].fillna('').astype(str).str.strip()
         
-        # Combine address parts if columns exist
-        if 'address' in add_df.columns:
-            add_df['address_part'] = add_df['address'].fillna('')
-        else:
-            add_df['address_part'] = ''
+        # Combine address parts
+        add_df['full_address'] = (
+            add_df.get('address', '') + ', ' + 
+            add_df.get('city_state_zip', '') + ', ' + 
+            add_df.get('country', '')
+        ).str.strip(' ,')
+        
+        # Clean and standardize addresses
+        add_df['full_address'] = add_df['full_address'].apply(clean_address)
+        
+        # Group addresses by entity and extract countries
+        for ent_num, group in add_df.groupby('ent_num'):
+            addresses[ent_num] = group['full_address'].tolist()
             
-        if 'city_state_zip' in add_df.columns:
-            add_df['address_part'] = add_df['address_part'] + ', ' + add_df['city_state_zip'].fillna('')
-        
-        if 'country' in add_df.columns:
-            add_df['address_part'] = add_df['address_part'] + ', ' + add_df['country'].fillna('')
-        
-        if 'ent_num' in add_df.columns:
-            address_groups = add_df.groupby('ent_num')['address_part'].apply(lambda x: '; '.join(filter(None, x.astype(str))))
-            result_df['addresses'] = result_df['ent_num'].map(address_groups).fillna('')
-        else:
-            logger.warning("ADD file missing ent_num column")
-            result_df['addresses'] = ''
-    else:
-        result_df['addresses'] = ''
+            # Extract countries from addresses
+            country_text = ' '.join(str(x) for x in group['full_address'].values)
+            if ent_num in nationalities:
+                nationalities[ent_num].extend(extract_nationalities(country_text))
+            else:
+                nationalities[ent_num] = extract_nationalities(country_text)
     
-    # Map to UN sanctions schema
-    # Initialize with data to avoid NaN issues
-    data = {}
+    # Add addresses to result
+    result_df['addresses'] = result_df['ent_num'].map(
+        lambda x: '; '.join(addresses.get(x, []))
+    )
     
-    # Required fields with OFAC data mapping
-    data['source'] = ['OFAC'] * len(result_df)  # Ensure source is set to OFAC
-    data['source_file'] = ['sdn.csv'] * len(result_df)
-    data['record_type'] = result_df.get('sdn_type', '').apply(lambda x: 'individual' if str(x).upper() == 'INDIVIDUAL' else 'entity')
-    data['dataid'] = result_df['ent_num'].astype(str)
-    data['reference_number'] = result_df['ent_num'].astype(str)
-    data['name'] = result_df['sdn_name'].fillna('').str.upper()
-    data['first_name'] = result_df['first_name']
-    data['second_name'] = result_df['second_name']
-    data['third_name'] = result_df['third_name']
-    data['fourth_name'] = result_df['fourth_name']
-    data['aliases'] = result_df['aliases']
-    data['gender'] = [''] * len(result_df)  # OFAC doesn't provide gender
-    data['nationalities'] = [''] * len(result_df)  # OFAC doesn't provide nationality
-    data['pob_cities'] = [''] * len(result_df)  # OFAC doesn't provide place of birth
-    data['pob_countries'] = [''] * len(result_df)  # OFAC doesn't provide place of birth
-    data['dob_dates'] = [''] * len(result_df)  # OFAC doesn't provide date of birth
-    data['dob_years'] = [''] * len(result_df)  # OFAC doesn't provide date of birth
-    data['un_list_type'] = [''] * len(result_df)  # Not applicable for OFAC
-    data['list_type'] = ['OFAC List'] * len(result_df)
-    data['program'] = result_df.get('program', '').fillna('')
-    data['comments'] = result_df.get('remarks', '').fillna('')
-    data['listed_on'] = [''] * len(result_df)  # OFAC doesn't provide this
-    data['last_updated'] = [''] * len(result_df)  # OFAC doesn't provide this
-    data['addresses'] = result_df['addresses']
-    data['id_numbers'] = [''] * len(result_df)  # OFAC doesn't provide this
+    # Add nationalities to result
+    result_df['nationalities'] = result_df['ent_num'].map(
+        lambda x: '; '.join(sorted(set(nationalities.get(x, []))))
+    )
+    
+    # Map to standard schema
+    data = {
+        'source': 'OFAC',
+        'source_file': 'sdn.csv',
+        'record_type': result_df.get('sdn_type', '').apply(
+            lambda x: 'individual' if str(x).upper() == 'INDIVIDUAL' else 'entity'
+        ),
+        'dataid': result_df['ent_num'].astype(str),
+        'reference_number': result_df['ent_num'].astype(str),
+        'name': result_df['sdn_name'],
+        'first_name': result_df['first_name'],
+        'middle_name': result_df['second_name'],
+        'last_name': result_df['third_name'],
+        'aliases': result_df['aliases'],
+        'nationalities': result_df['nationalities'],
+        'addresses': result_df['addresses'],
+        'program': result_df.get('program', '').fillna(''),
+        'comments': result_df.get('remarks', '').fillna(''),
+        'list_type': 'OFAC SDN List',
+        'last_updated': datetime.now().strftime('%Y-%m-%d'),
+        'id_numbers': '',  # Will be populated from other sources if available
+        'gender': '',      # Not typically provided by OFAC
+        'pob_cities': '',  # Not typically provided by OFAC
+        'pob_countries': '',  # Not typically provided by OFAC
+        'dob_dates': '',   # Not typically provided by OFAC
+        'dob_years': ''    # Not typically provided by OFAC
+    }
     
     normalized_df = pd.DataFrame(data)
     
@@ -395,8 +649,45 @@ def create_normalized_ofac_data(sdn_df: pd.DataFrame, alt_df: pd.DataFrame, add_
     return normalized_df
 
 
+def ensure_directory_exists(directory: Path) -> None:
+    """Ensure the specified directory exists, creating it if necessary."""
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        logger.debug(f"Directory exists or was created: {directory}")
+    except Exception as e:
+        logger.error(f"Error creating directory {directory}: {e}")
+        raise
+
+def save_output(df: pd.DataFrame, output_path: Path) -> None:
+    """Save the output DataFrame to a CSV file with proper formatting."""
+    try:
+        # Ensure the output directory exists
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Build save arguments
+        save_args = {
+            'path_or_buf': output_path,
+            'index': False,
+            'encoding': 'utf-8',
+            'quoting': 1,  # Quote all fields
+            'quotechar': '"',
+            'escapechar': '\\',
+            'date_format': '%Y-%m-%d'
+        }
+        
+        # Check pandas version to handle line_terminator parameter
+        import pandas as pd
+        if pd.__version__ < '2.0.0':
+            save_args['line_terminator'] = '\n'
+        # Save the DataFrame
+        df.to_csv(**save_args)
+        logger.info(f"Successfully saved output to {output_path}")
+    except Exception as e:
+        logger.error(f"Error saving output file {output_path}: {e}")
+        raise
+
 def main():
-    """Main function"""
+    """Main function to process OFAC sanctions data."""
     logger.info("Starting OFAC sanctions conversion")
     
     # Define paths
@@ -405,45 +696,104 @@ def main():
     raw_dir = project_root / "app" / "data" / "sanctions" / "raw" / "ofac"
     output_dir = project_root / "app" / "data" / "sanctions" / "normalized" / "ofac"
     
-    # Input files
-    sdn_file = raw_dir / "sdn.csv"
-    alt_file = raw_dir / "alt.csv"
-    add_file = raw_dir / "add.csv"
+    # Ensure output directory exists
+    try:
+        ensure_directory_exists(output_dir)
+    except Exception as e:
+        logger.error(f"Failed to create output directory: {e}")
+        return 1
     
-    # Output file
-    output_file = output_dir / "ofac_sanctions.csv"
+    # Load data files with error handling
+    sdn_path = raw_dir / "sdn.csv"
+    alt_path = raw_dir / "alt.csv"
+    add_path = raw_dir / "add.csv"
     
-    # Load data
-    sdn_df = load_sdn_data(sdn_file)
-    alt_df = load_alt_data(alt_file)
-    add_df = load_add_data(add_file)
+    # Check if input files exist
+    for path in [sdn_path, alt_path, add_path]:
+        if not path.exists():
+            logger.error(f"Input file not found: {path}")
+            return 1
+    
+    try:
+        logger.info(f"Loading SDN data from {sdn_path}")
+        sdn_df = load_sdn_data(sdn_path)
+        if sdn_df.empty:
+            logger.error("No data loaded from SDN file")
+            return 1
+            
+        logger.info(f"Loading ALT data from {alt_path}")
+        alt_df = load_alt_data(alt_path)
+        
+        logger.info(f"Loading ADD data from {add_path}")
+        add_df = load_add_data(add_path)
+    except Exception as e:
+        logger.error(f"Error loading input files: {e}")
+        return 1
     
     if sdn_df.empty:
         logger.error("No SDN data loaded. Cannot proceed.")
-        return
+        return 1
     
-    # Create normalized data
-    normalized_df = create_normalized_ofac_data(sdn_df, alt_df, add_df)
-    
-    if normalized_df.empty:
-        logger.error("Failed to create normalized data")
-        return
-    
-    # Ensure output directory exists
-    output_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Save to CSV
-    logger.info(f"Saving normalized data to {output_file}")
-    
-    # Debug: Check the DataFrame before saving
-    logger.info(f"DataFrame shape: {normalized_df.shape}")
-    logger.info(f"DataFrame columns: {list(normalized_df.columns)}")
-    logger.info(f"First row of DataFrame:")
-    logger.info(f"  Source: {repr(normalized_df.iloc[0]['source'])}")
-    logger.info(f"  Name: {repr(normalized_df.iloc[0]['name'])}")
-    
-    normalized_df.to_csv(output_file, index=False)
-    
+    try:
+        # Create normalized data
+        logger.info("Creating normalized data")
+        normalized_df = create_normalized_ofac_data(sdn_df, alt_df, add_df)
+        
+        if normalized_df.empty:
+            logger.error("No data was normalized")
+            return 1
+        
+        # Get current date for filenames and timestamps
+        current_date = date.today()
+        
+        # Add processing timestamp
+        normalized_df['processing_date'] = current_date.isoformat()
+        normalized_df['last_updated'] = current_date.isoformat()
+        
+        # Reorder columns for better readability
+        column_order = [
+            'source', 'source_file', 'dataid', 'reference_number', 'list_type',
+            'record_type', 'name', 'first_name', 'middle_name', 'last_name',
+            'aliases', 'nationalities', 'gender', 'pob_cities', 'pob_countries',
+            'dob_dates', 'dob_years', 'addresses', 'id_numbers', 'program',
+            'comments', 'last_updated', 'processing_date'
+        ]
+        
+        # Only include columns that exist in the DataFrame
+        existing_columns = [col for col in column_order if col in normalized_df.columns]
+        normalized_df = normalized_df[existing_columns]
+        
+        # Save output with date-based filename
+        today = current_date.strftime('%Y%m%d')
+        output_filename = f"ofac_sanctions_{today}.csv"
+        output_path = output_dir / output_filename
+        latest_path = output_dir / "ofac_sanctions_latest.csv"
+        
+        # Save the data
+        save_output(normalized_df, output_path)
+        
+        # Create/update the latest symlink
+        try:
+            if latest_path.exists():
+                latest_path.unlink()
+            latest_path.symlink_to(output_path.name)
+            logger.info(f"Created symlink: {latest_path} -> {output_path.name}")
+        except OSError as e:
+            logger.warning(f"Could not create symlink (this is normal on Windows): {e}")
+            # On Windows or if symlink fails, just copy the file
+            shutil.copy2(output_path, latest_path)
+            logger.info(f"Copied to latest file: {latest_path}")
+        
+        # Log summary statistics
+        logger.info(f"Processed {len(normalized_df)} records")
+        logger.info(f"Records by type: {normalized_df['record_type'].value_counts().to_dict()}")
+        
+        logger.info("OFAC sanctions conversion completed successfully")
+        return 0
+        
+    except Exception as e:
+        logger.error(f"Error during processing: {e}", exc_info=True)
+        return 1
     # Summary statistics
     logger.info("="*60)
     logger.info("Conversion complete!")
@@ -466,4 +816,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        sys.exit(main())
+    except Exception as e:
+        logger.critical(f"Unhandled exception: {e}", exc_info=True)
+        sys.exit(1)
