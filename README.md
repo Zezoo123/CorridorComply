@@ -10,6 +10,38 @@ The project uses an open-core model: core KYC/AML features are open source, whil
 
 Build a simple, transparent, Python-based compliance system that fintechs can integrate quickly, starting with basic KYC/AML and expanding into corridor-specific regulatory automation.
 
+## Sanctions Data Management
+
+### Updating Sanctions Data
+
+1. **Automatic Updates**:
+   The system automatically looks for the latest combined sanctions file in `app/data/sanctions/combined/` with the pattern `combined_sanctions_*.csv`.
+
+2. **Manual Updates**:
+   - Place new sanctions files in the `app/data/sanctions/combined/` directory
+   - The system will automatically pick up the most recent file based on modification time
+   - Or specify a custom path when loading: `load_sanctions("path/to/your/file.csv")`
+
+### Data Format
+
+The sanctions loader expects CSV files with the following columns (case-sensitive):
+- `source` - Source of the sanctions (e.g., "UN", "EU", "UK")
+- `source_file` - Original filename
+- `record_type` - Type of record (e.g., "individual", "entity")
+- `dataid` - Unique identifier from the source
+- `name` - Full name of the sanctioned entity (required)
+- `aliases` - Alternative names or spellings
+- `nationalities` - Nationalities (comma-separated)
+- `last_updated` - Last update timestamp
+- `processing_date` - Date when the record was processed
+
+### Testing
+
+Run the test suite with:
+```bash
+pytest tests/test_sanctions_loader.py -v
+```
+
 ## Project Phases
 
 ### Phase 1 – MVP (Open Source)
@@ -68,7 +100,27 @@ Build a simple, transparent, Python-based compliance system that fintechs can in
 
 ### AML Core
 
-- Sanctions screening (UN, OFAC, EU, UK)
+- **Sanctions Screening**
+  - Combined sanctions list from multiple sources (UN, EU, UK)
+  - Automatic updates with latest sanctions data
+  - Fuzzy name matching with configurable thresholds
+  - In-memory caching for better performance
+  - Support for custom sanctions lists
+  
+  Example usage:
+  ```python
+  from app.services.sanctions_loader import load_sanctions, SanctionsLoader
+  
+  # Load the latest sanctions data
+  df = load_sanctions()  # Uses cached version if available
+  
+  # Or load a specific file
+  # df = load_sanctions("path/to/sanctions.csv")
+  
+  # Clear the cache if needed
+  SanctionsLoader.clear_cache()
+  ```
+
 - Basic PEP fuzzy matching
 - Basic country risk scoring
 - Local watchlist matching
@@ -149,6 +201,12 @@ Build a simple, transparent, Python-based compliance system that fintechs can in
 git clone https://github.com/yourname/corridorcomply
 cd corridorcomply
 pip install -r requirements.txt
+
+# For development with additional tools
+pip install -r requirements-dev.txt  # If you have a dev requirements file
+
+# Install in development mode
+pip install -e .
 uvicorn main:app --reload
 ```
 
