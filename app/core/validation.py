@@ -4,6 +4,7 @@ KYC field validation utilities
 from datetime import datetime, date
 from typing import List, Tuple, Optional, Dict, Any
 import re
+from ..data.countries import is_valid_country_code, get_country_info
 
 
 # Valid document types
@@ -13,16 +14,6 @@ VALID_DOCUMENT_TYPES = {
     "driving_license",
     "national_id",
     "residence_permit"
-}
-
-# ISO 3166-1 alpha-2 country codes (common ones for corridors)
-VALID_NATIONALITIES = {
-    # GCC countries
-    "QA", "AE", "SA", "KW", "BH", "OM",
-    # South/Southeast Asia
-    "PH", "PK", "IN", "BD", "LK", "NP",
-    # Others
-    "US", "GB", "CA", "AU", "FR", "DE", "IT", "ES", "NL", "BE", "CH", "AT"
 }
 
 
@@ -117,11 +108,14 @@ class FieldValidator:
         if not re.match(r'^[A-Z]{2}$', nationality_upper):
             return False, "Nationality must be a 2-letter ISO country code (e.g., QA, PH, US)"
         
-        # Check if it's in our valid list (can be extended)
-        if nationality_upper not in VALID_NATIONALITIES:
-            # Still accept it but warn (for flexibility)
-            # In production, you might want to use a full ISO 3166-1 list
-            pass
+        # Check if it's a valid country code (alpha-2 or alpha-3)
+        if not is_valid_country_code(nationality_upper):
+            return False, "Nationality must be a valid 2 or 3-letter ISO country code (e.g., US, GBR, QA, ARE)"
+            
+        # Get country info (we don't need it here, but this validates the code exists)
+        country_info = get_country_info(nationality_upper)
+        if not country_info:
+            return False, "Invalid country code"
         
         return True, None
     
