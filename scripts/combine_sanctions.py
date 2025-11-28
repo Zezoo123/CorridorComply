@@ -24,61 +24,53 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def clean_text(text: Any) -> str:
-    """Clean and normalize text by removing extra whitespace and normalizing unicode."""
-    if not text or pd.isna(text):
-        return ''
+class SanctionsCombiner:
+    """Combine multiple sanctions lists into a single consolidated list."""
     
-    # Convert to string and normalize unicode
-    text = str(text)
-    text = unicodedata.normalize('NFKC', text)
-    
-    # Remove extra whitespace and newlines
-    text = ' '.join(text.split())
-    
-    return text.strip()
-
-def combine_sanctions_lists(input_dirs: List[Path], output_dir: Path) -> Path:
-    """
-    Combine multiple sanctions lists into a single file.
-    
-    Args:
-        input_dirs: List of directories containing normalized sanctions files
-        output_dir: Directory to save the combined output
+    def __init__(self, base_dir: str, output_dir: str):
+        """Initialize the SanctionsCombiner.
         
-    Returns:
-        Path to the combined output file
-    """
-    start_time = datetime.now()
-    logger.info("\n" + "="*60)
-    logger.info("Starting sanctions list combination")
-    logger.info("="*60)
+        Args:
+            base_dir: Base directory containing the sanctions data
+            output_dir: Directory to save the combined output
+        """
+        self.base_dir = Path(base_dir)
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
     
-    # Find all latest files
-    latest_files = []
-    for dir_path in input_dirs:
-        # First try to follow the 'latest' symlink
-        latest = dir_path / "latest"
-        if latest.exists():
-            latest_files.append(latest.resolve())
-        else:
-            # If no symlink, find the most recent CSV file
-            files = list(dir_path.glob("*.csv"))
-            if files:
-                latest_file = max(files, key=lambda x: x.stat().st_mtime)
-                latest_files.append(latest_file)
-    
-    if not latest_files:
-        logger.error("No input files found in the specified directories")
-        raise FileNotFoundError("No input files found")
-    
-    # Load and combine all data
-    dfs = []
-    for file_path in latest_files:
-        try:
-            logger.info(f"Loading {file_path}")
+    def find_latest_files(self) -> List[Path]:
+        """Find all '*_latest.csv' files in the normalized subdirectories.
+        
+        Returns:
+            List of paths to the latest files
+        """
+        normalized_dir = self.base_dir / 'normalized'
+        if not normalized_dir.exists():
+            logger.error(f"Normalized directory not found: {normalized_dir}")
+            return []
             
-            # Read the CSV file with appropriate parameters
+        latest_files = []
+        for source_dir in normalized_dir.iterdir():
+            if source_dir.is_dir():
+                latest_file = next(source_dir.glob('*_latest.csv'), None)
+                if latest_file:
+                    latest_files.append(latest_file)
+                    logger.info(f"Found latest file: {latest_file}")
+                else:
+                    logger.warning(f"No '*_latest.csv' file found in {source_dir}")
+        
+        return latest_files
+    
+    def read_csv_file(self, file_path: Path) -> Optional[pd.DataFrame]:
+        """Read a CSV file into a pandas DataFrame.
+        
+        Args:
+            file_path: Path to the CSV file
+            
+        Returns:
+            DataFrame containing the CSV data, or None if reading fails
+        """
+        try:
             df = pd.read_csv(
                 file_path, 
                 dtype=str, 
@@ -94,137 +86,120 @@ def combine_sanctions_lists(input_dirs: List[Path], output_dir: Path) -> Path:
             
             # Add source column if not present
             if 'source' not in df.columns:
-                # Try to get source from directory name
-                source = file_path.parent.name.upper()
-                df['source'] = source
-            
-            # Ensure all required columns exist
-            required_columns = [
-                'source', 'source_file', 'record_type', 'dataid', 'reference_number',
-                'name', 'first_name', 'middle_name', 'last_name', 'aliases', 'gender',
-                'nationalities', 'pob_cities', 'pob_countries', 'dob_dates', 'dob_years',
-                'addresses', 'id_numbers', 'program', 'comments', 'listed_on', 'last_updated',
-                'processing_date', 'list_type'
-            ]
-            
-            # Add missing columns with empty strings
-            for col in required_columns:
-                if col not in df.columns:
-                    df[col] = ''
-            
-            # Clean all string columns
-            for col in df.select_dtypes(include=['object']).columns:
-                df[col] = df[col].apply(clean_text)
-            
-            dfs.append(df)
-            logger.info(f"  Loaded {len(df)} records from {file_path.name}")
+                df['source'] = file_path.parent.name.upper()
+                
+            return df
             
         except Exception as e:
-            logger.error(f"Error loading {file_path}: {e}", exc_info=True)
-            continue
+            logger.error(f"Error reading {file_path}: {str(e)}")
+            return None
     
-    if not dfs:
-        logger.error("No data was loaded from any source files")
-        raise ValueError("No data available to combine")
+    def combine_sanctions(self) -> pd.DataFrame:
+        """Combine all latest sanctions lists into a single DataFrame.
+        
+        Returns:
+            Combined DataFrame containing all sanctions
+        """
+        latest_files = self.find_latest_files()
+        
+        if not latest_files:
+            logger.error("No latest files found to combine")
+            return pd.DataFrame()
+        
+        all_dfs = []
+        for file_path in latest_files:
+            logger.info(f"Processing {file_path}")
+            df = self.read_csv_file(file_path)
+            if df is not None and not df.empty:
+                all_dfs.append(df)
+        
+        if not all_dfs:
+            logger.warning("No valid data found to combine")
+            return pd.DataFrame()
+            
+        # Combine all DataFrames
+        combined_df = pd.concat(all_dfs, ignore_index=True)
+        
+        # Add a unique ID for each record
+        combined_df['id'] = combined_df.index + 1
+        
+        return combined_df
     
-    # Combine all dataframes
-    logger.info("Combining data...")
-    combined_df = pd.concat(dfs, ignore_index=True)
-    
-    # Standardize column names and add missing columns
-    required_columns = {
-        'source', 'source_file', 'record_type', 'dataid', 'reference_number',
-        'name', 'first_name', 'middle_name', 'last_name', 'aliases', 'gender',
-        'nationalities', 'pob_cities', 'pob_countries', 'dob_dates', 'dob_years',
-        'addresses', 'id_numbers', 'program', 'comments', 'listed_on', 'last_updated',
-        'processing_date', 'list_type'
-    }
-    
-    # Add missing columns with empty values
-    for col in required_columns:
-        if col not in combined_df.columns:
-            combined_df[col] = ''
-    
-    # Select and reorder columns
-    existing_columns = [col for col in required_columns if col in combined_df.columns]
-    combined_df = combined_df[existing_columns]
-    
-    # Create output filename with timestamp
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    output_filename = f"combined_sanctions_{timestamp}.csv"
-    output_path = output_dir / output_filename
-    latest_path = output_dir / "combined_sanctions_latest.csv"
-    
-    # Ensure output directory exists
-    output_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Save the combined data
-    logger.info(f"Saving combined data to {output_path}")
-    combined_df.to_csv(
-        output_path,
-        index=False,
-        encoding='utf-8',
-        quoting=1,  # Quote all fields
-        quotechar='"',
-        escapechar='\\'
-    )
-    
-    # Create/update the latest symlink
-    try:
-        if latest_path.exists():
-            latest_path.unlink()
-        latest_path.symlink_to(output_path.name)
-        logger.info(f"Created symlink: {latest_path} -> {output_path.name}")
-    except OSError as e:
-        logger.warning(f"Could not create symlink: {e}")
-    
-    # Log statistics
-    duration = (datetime.now() - start_time).total_seconds()
-    logger.info("\n" + "="*60)
-    logger.info("Combination complete!")
-    logger.info("="*60)
-    logger.info(f"Total records: {len(combined_df):,}")
-    
-    # Count by source
-    if 'source' in combined_df.columns:
-        source_counts = combined_df['source'].value_counts().to_dict()
-        logger.info("\nRecords by source:")
-        for source, count in source_counts.items():
-            logger.info(f"  {source}: {count:,} records")
-    
-    # Count by record type
-    if 'record_type' in combined_df.columns:
-        type_counts = combined_df['record_type'].value_counts().to_dict()
-        logger.info("\nRecords by type:")
-        for rec_type, count in type_counts.items():
-            logger.info(f"  {rec_type}: {count:,} records")
-    
-    logger.info(f"\nProcessing time: {duration:.2f} seconds")
-    logger.info(f"Output file: {output_path}")
-    
-    return output_path
+    def save_combined_file(self, df: pd.DataFrame) -> str:
+        """Save the combined DataFrame to a CSV file.
+        
+        Args:
+            df: DataFrame to save
+            
+        Returns:
+            Path to the saved file
+        """
+        if df.empty:
+            logger.warning("No data to save")
+            return ""
+            
+        # Create output filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_file = self.output_dir / f"combined_sanctions_{timestamp}.csv"
+        
+        # Save to CSV
+        df.to_csv(output_file, index=False, encoding='utf-8', quoting=1)
+        
+        # Create/update latest symlink
+        latest_file = self.output_dir / "combined_sanctions_latest.csv"
+        if latest_file.exists():
+            latest_file.unlink()
+        latest_file.symlink_to(output_file.name)
+        
+        return str(output_file)
 
 def main() -> int:
     """Main function to run the sanctions list combination."""
     try:
+        logger.info("Starting sanctions combination process")
+        start_time = datetime.now()
+        
         # Set up paths
         script_dir = Path(__file__).parent
         project_root = script_dir.parent
-        data_dir = project_root / "app" / "data" / "sanctions" / "normalized"
+        base_dir = project_root / "app" / "data" / "sanctions"
+        output_dir = base_dir / "combined"
         
-        # Define input directories
-        input_dirs = [
-            data_dir / "eu",
-            data_dir / "uk",
-            data_dir / "un",
-            # Add more directories as needed
-        ]
+        # Initialize and run the combiner
+        combiner = SanctionsCombiner(base_dir, output_dir)
+        combined_df = combiner.combine_sanctions()
         
-        # Set output directory
-        output_dir = data_dir / "combined"
+        if combined_df.empty:
+            logger.error("No data was combined. Check the input files and try again.")
+            return 1
         
-        # Run the combination
-        combine_sanctions_lists(input_dirs, output_dir)
+        # Save the combined file
+        output_file = combiner.save_combined_file(combined_df)
+        
+        # Log statistics
+        duration = (datetime.now() - start_time).total_seconds()
+        
+        logger.info("\n" + "="*60)
+        logger.info("Combination complete!")
+        logger.info("="*60)
+        logger.info(f"Total records: {len(combined_df):,}")
+        
+        # Count by source
+        if 'source' in combined_df.columns:
+            source_counts = combined_df['source'].value_counts().to_dict()
+            logger.info("\nRecords by source:")
+            for source, count in source_counts.items():
+                logger.info(f"  {source}: {count:,} records")
+        
+        # Count by record type if the column exists
+        if 'record_type' in combined_df.columns:
+            type_counts = combined_df['record_type'].value_counts().to_dict()
+            logger.info("\nRecords by type:")
+            for rec_type, count in type_counts.items():
+                logger.info(f"  {rec_type}: {count:,} records")
+        
+        logger.info(f"\nProcessing time: {duration:.2f} seconds")
+        logger.info(f"Output file: {output_file}")
         
         return 0
         
