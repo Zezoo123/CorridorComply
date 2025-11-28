@@ -5,7 +5,7 @@ from .risk import RiskLevel
 class MatchResult(BaseModel):
     sanctioned_name: str
     source: str
-    similarity: int = Field(..., ge=0, le=100, description="Similarity score 0-100")
+    similarity: float = Field(..., ge=0.0, le=100.0, description="Similarity score 0-100")
     confidence: str = Field(..., description="Confidence level: high, medium, or low")
     dob: Optional[str] = None
     dob_match: Optional[bool] = Field(None, description="Whether DOB matches if provided")
