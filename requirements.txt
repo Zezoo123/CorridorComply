@@ -35,3 +35,7 @@ rapidfuzz
 easyocr
 mrz
 
+# Face matching
+deepface>=0.0.79
+retina-face>=0.0.14
+tensorflow>=2.9.0
