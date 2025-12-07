@@ -168,6 +168,7 @@ app/data/sample_docs/*.jpeg
 !app/data/sanctions/raw/.gitkeep
 !app/data/sanctions/normalized/.gitkeep
 !app/data/sample_docs/.gitkeep
+app/data/face_match_test_data/*
 
 # ML models
 *.pkl
