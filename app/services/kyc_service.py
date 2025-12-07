@@ -2,8 +2,10 @@
 KYC (Know Your Customer) service
 """
 from typing import Dict, Any, Optional, List
+from PIL import Image
 from .risk_engine import RiskEngine
 from ..core.validation import FieldValidator
+from .face_match import FaceMatchingService
 from ..core.logger import log_audit_event
 
 
@@ -18,7 +20,8 @@ class KYCService:
         nationality: str,
         document_type: str,
         document_number: str,
-        # Future: document_image, selfie_image
+        document_image: Optional[Image.Image] = None,
+        selfie_image: Optional[Image.Image] = None,
         face_match_score: Optional[float] = None,
         face_match_result: Optional[bool] = None,
         ocr_quality: Optional[float] = None,
@@ -28,24 +31,27 @@ class KYCService:
         data_quality_issues: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
-        Perform KYC verification
+        Perform KYC verification with optional face matching
         
         Args:
+            request_id: Unique request identifier
             full_name: Full name from document
-            dob: Date of birth
-            nationality: Nationality code
+            dob: Date of birth (YYYY-MM-DD)
+            nationality: 2-letter country code
             document_type: Type of document (passport, id_card, etc.)
             document_number: Document number
-            face_match_score: Face match similarity (0.0-1.0)
-            face_match_result: Whether face match passed
-            ocr_quality: OCR extraction quality (0.0-1.0)
+            document_image: Optional PIL Image of the document
+            selfie_image: Optional PIL Image of the selfie
+            face_match_score: Optional pre-calculated face match score (0-1)
+            face_match_result: Optional pre-determined face match result
+            ocr_quality: Optional OCR quality score (0-1)
             document_expired: Whether document is expired
-            document_expiring_soon: Whether document expires soon
+            document_expiring_soon: Whether document expires within 30 days
             missing_fields: List of missing required fields
             data_quality_issues: List of data quality issues
             
         Returns:
-            Dictionary with status, risk_score, risk_level, and details
+            Dictionary with verification results
         """
         # Validate all KYC fields
         validation_result = FieldValidator.validate_kyc_fields(
@@ -55,6 +61,27 @@ class KYCService:
             document_type=document_type,
             document_number=document_number
         )
+        
+        # Process face matching if both images are provided
+        if document_image is not None and selfie_image is not None:
+            try:
+                face_match = FaceMatchingService.verify_faces(document_image, selfie_image)
+                
+                # Use the calculated values if not provided
+                if face_match_score is None:
+                    face_match_score = face_match["face_match_score"]
+                if face_match_result is None:
+                    face_match_result = face_match["face_match_result"]
+                    
+                # Log any face matching errors
+                if face_match.get("error"):
+                    logger.warning(f"Face matching warning: {face_match['error']}")
+                    
+            except Exception as e:
+                logger.error(f"Error during face matching: {str(e)}")
+                # Continue with existing values if face matching fails
+                face_match_score = face_match_score or 0.0
+                face_match_result = face_match_result or False
         
         # Combine validation errors with any provided data quality issues
         all_data_quality_issues = (data_quality_issues or []) + validation_result.get("data_quality_issues", [])
@@ -98,7 +125,13 @@ class KYCService:
         # Build details list
         details = []
         
-        # Validation results
+        # Add face match details if images were processed
+        if document_image is not None and selfie_image is not None:
+            if face_match_result is not None:
+                match_status = "matched" if face_match_result else "did not match"
+                details.append(f"Face match: {match_status} (score: {face_match_score:.2f})")
+        
+        # Rest of the details building...
         if validation_result["is_valid"]:
             details.append("All fields validated successfully")
         else:
@@ -113,12 +146,6 @@ class KYCService:
             details.append("Document format valid")
         else:
             details.append("Document format invalid")
-        
-        # Face match
-        if face_match_result is True:
-            details.append("Face match passed")
-        elif face_match_result is False:
-            details.append("Face match failed")
         
         # Document expiry
         if document_expired:
@@ -145,7 +172,9 @@ class KYCService:
             "status": status,
             "risk_score": risk_result["risk_score"],
             "risk_level": risk_result["risk_level"],
-            "details": details
+            "details": details,
+            "face_match_score": face_match_score,
+            "face_match_result": face_match_result
         }
         
         # Log audit event
@@ -156,7 +185,9 @@ class KYCService:
             result={
                 "status": status,
                 "risk_score": risk_result["risk_score"],
-                "risk_level": risk_result["risk_level"].value
+                "risk_level": risk_result["risk_level"].value,
+                "face_match_score": face_match_score,
+                "face_match_result": face_match_result
             },
             metadata={
                 "document_type": document_type,
@@ -166,4 +197,3 @@ class KYCService:
         )
         
         return result
-
