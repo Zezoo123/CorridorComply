@@ -161,9 +161,7 @@ logs/
 # Data files (keep structure, ignore actual data)
 app/data/sanctions/**/*.csv
 app/data/sanctions/**/*.xml
-app/data/sample_docs/*.jpg
-app/data/sample_docs/*.png
-app/data/sample_docs/*.jpeg
+app/data/sample_docs/*
 !app/data/sanctions/.gitkeep
 !app/data/sanctions/raw/.gitkeep
 !app/data/sanctions/normalized/.gitkeep
