@@ -10,7 +10,7 @@ SIMILARITY_THRESHOLD = 85  # adjustable
 class AMLService:
 
     @staticmethod
-    def screen(request_id: str, full_name: str, dob: str, nationality: str) -> Dict[str, Any]:
+    async def screen(request_id: str, full_name: str, dob: str, nationality: str) -> Dict[str, Any]:
         sanctions_df = SanctionsLoader.load_sanctions()
 
         matches = []
@@ -92,20 +92,19 @@ class AMLService:
         
         # Log audit event
         log_audit_event(
-            request_id=request_id,
-            check_type="aml",
-            action="screen",
-            result={
+            event_type="aml_screening",
+            data={
+                "status": "success",
+                "request_id": request_id,
+                "full_name": full_name,
+                "nationality": nationality,
                 "sanctions_match": sanctions_match,
                 "pep_match": pep_match,
                 "risk_score": risk_result["risk_score"],
                 "risk_level": risk_result["risk_level"].value,
                 "match_count": len(matches)
             },
-            metadata={
-                "full_name": full_name,
-                "nationality": nationality
-            }
+            request=None  # No request object available in the service layer
         )
         
         return result

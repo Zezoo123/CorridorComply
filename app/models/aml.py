@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional
-from .risk import RiskLevel
+from .enums import RiskLevel
 
 class MatchResult(BaseModel):
     sanctioned_name: str
