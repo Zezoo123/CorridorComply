@@ -227,3 +227,7 @@ virtualenv/
 # Alembic
 alembic/versions/*.pyc
 
+debug/
+temp.txt
+*.pyc
+__pycache__/
