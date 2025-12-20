@@ -228,7 +228,8 @@ async def get_combined_risk(
         log_audit_event(
             event_type="combined_risk_assessment",
             data=audit_data,
-            request=request_with_id
+            request=request_with_id,
+            request_payload=payload
         )
         
         return response
@@ -261,7 +262,8 @@ async def get_combined_risk(
                 "has_aml_data": payload.aml_data is not None,
                 "has_kyc_data": payload.kyc_data is not None
             },
-            request=request_with_id
+            request=request_with_id,
+            request_payload=payload
         )
         
         # Re-raise the exception with proper error handling

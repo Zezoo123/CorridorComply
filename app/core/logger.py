@@ -5,7 +5,56 @@ from pathlib import Path
 from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
 from datetime import datetime
 import json
-from typing import Dict, Any
+from typing import Dict, Any, Optional
+import os
+
+def sanitize_request_payload(payload: Any, max_size: int = 1000) -> Dict[str, Any]:
+    """
+    Sanitize request payload for logging by removing large binary data.
+    
+    Args:
+        payload: The request payload (can be dict, Pydantic model, etc.)
+        max_size: Maximum size for string fields (larger fields will be truncated)
+    
+    Returns:
+        Sanitized dictionary representation of the payload
+    """
+    if payload is None:
+        return {}
+    
+    # Convert Pydantic models to dict
+    if hasattr(payload, 'dict'):
+        payload_dict = payload.dict()
+    elif hasattr(payload, 'model_dump'):
+        payload_dict = payload.model_dump()
+    elif isinstance(payload, dict):
+        payload_dict = payload
+    else:
+        # Try to convert to dict
+        try:
+            payload_dict = dict(payload)
+        except (TypeError, ValueError):
+            return {"_type": str(type(payload).__name__), "_value": str(payload)[:max_size]}
+    
+    sanitized = {}
+    for key, value in payload_dict.items():
+        # Skip large base64 image fields
+        if key.endswith('_base64') or key.endswith('_image') or key == 'image':
+            sanitized[key] = f"<base64_image_data: {len(str(value))} bytes>" if value else None
+        elif isinstance(value, str) and len(value) > max_size:
+            sanitized[key] = value[:max_size] + "... (truncated)"
+        elif isinstance(value, dict):
+            sanitized[key] = sanitize_request_payload(value, max_size)
+        elif isinstance(value, list):
+            # Limit list size for logging
+            if len(value) > 10:
+                sanitized[key] = value[:10] + [f"... ({len(value) - 10} more items)"]
+            else:
+                sanitized[key] = [sanitize_request_payload(item, max_size) if isinstance(item, dict) else item for item in value]
+        else:
+            sanitized[key] = value
+    
+    return sanitized
 
 class JsonFormatter(logging.Formatter):
     """Custom formatter that outputs JSON strings with timestamps in ISO format."""
@@ -80,8 +129,21 @@ def setup_logging():
     audit_dir = Path("logs/audit")
     audit_dir.mkdir(parents=True, exist_ok=True)
     
+    # Create a custom handler that ensures directory exists during rotation
+    class SafeTimedRotatingFileHandler(TimedRotatingFileHandler):
+        """TimedRotatingFileHandler that ensures directory exists before rotation."""
+        
+        def doRollover(self):
+            """Override to ensure directory exists before rotation."""
+            # Ensure directory exists
+            dir_name = os.path.dirname(self.baseFilename)
+            if dir_name and not os.path.exists(dir_name):
+                os.makedirs(dir_name, exist_ok=True)
+            # Call parent rollover
+            super().doRollover()
+    
     # Configure audit logger with daily rotation
-    audit_handler = TimedRotatingFileHandler(
+    audit_handler = SafeTimedRotatingFileHandler(
         'logs/audit/audit.log',
         when='midnight',
         interval=1,
@@ -107,14 +169,15 @@ def setup_logging():
     
     logging.info("Logging setup complete", extra={'service': 'corridorcomply'})
 
-def log_audit_event(event_type: str, data: Dict[str, Any], request: Any = None):
+def log_audit_event(event_type: str, data: Dict[str, Any], request: Any = None, request_payload: Optional[Any] = None):
     """
     Log an audit event with structured data.
     
     Args:
         event_type: Type of event (e.g., 'kyc_verification', 'aml_screening')
-        data: Dictionary containing event-specific data
+        data: Dictionary containing event-specific data (risk score, match summary, etc.)
         request: Optional FastAPI request object for request metadata
+        request_payload: Optional request payload to include in audit log (will be sanitized)
     """
     audit_logger = logging.getLogger('audit')
     
@@ -123,6 +186,10 @@ def log_audit_event(event_type: str, data: Dict[str, Any], request: Any = None):
         'timestamp': datetime.utcnow().isoformat(),
         **data
     }
+    
+    # Add sanitized request payload if provided
+    if request_payload is not None:
+        log_data['request_payload'] = sanitize_request_payload(request_payload)
     
     # Add request metadata if available
     if request:

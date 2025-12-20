@@ -24,15 +24,59 @@ logger = logging.getLogger(__name__)
 def decode_base64_image(image_data: str) -> Image.Image:
     """Decode base64 image data to PIL Image."""
     try:
+        # Validate input
+        if not image_data or not isinstance(image_data, str):
+            raise ValueError("Image data must be a non-empty string")
+        
         # Remove data URL prefix if present
         if ',' in image_data:
             image_data = image_data.split(',', 1)[1]
         
+        # Remove whitespace
+        image_data = image_data.strip()
+        
+        # Validate base64 format (basic check)
+        if not image_data:
+            raise ValueError("Empty base64 image data")
+        
         # Decode base64
-        image_bytes = base64.b64decode(image_data)
-        return Image.open(BytesIO(image_bytes))
+        try:
+            image_bytes = base64.b64decode(image_data, validate=True)
+        except Exception as e:
+            raise ValueError(f"Invalid base64 encoding: {str(e)}")
+        
+        # Validate we got some data
+        if not image_bytes or len(image_bytes) < 10:
+            raise ValueError("Decoded image data is too small or empty")
+        
+        # Try to open as image
+        # We don't call image.load() here because:
+        # 1. Small images (like 1x1 test images) may fail load() but are still valid PIL Images
+        # 2. The OCR and face matching services will handle failures gracefully with proper logging
+        # 3. This allows the image to pass through and fail at the appropriate processing stage
+        try:
+            image = Image.open(BytesIO(image_bytes))
+            # Just verify it's a valid PIL Image object - don't force a full load
+            # This allows small/test images to pass through and fail gracefully during OCR/face matching
+            if not hasattr(image, 'size') or not hasattr(image, 'mode'):
+                raise ValueError("Invalid image object created")
+            return image
+        except Exception as e:
+            # Only fail if we can't even open it as an image
+            error_msg = str(e)
+            if "cannot identify image file" in error_msg.lower():
+                raise ValueError(
+                    "The provided data is not a valid image file. "
+                    "Please ensure you're sending a valid image (PNG, JPEG, etc.) encoded in base64."
+                )
+            # For other errors, fail with a clear message
+            raise ValueError(f"Cannot open image: {error_msg}")
+            
+    except ValueError:
+        # Re-raise ValueError as-is
+        raise
     except Exception as e:
-        logger.error(f"Failed to decode image: {str(e)}")
+        logger.error(f"Failed to decode image: {str(e)}", exc_info=True)
         raise ValueError(f"Invalid image data: {str(e)}")
 
 @router.post("/verify", response_model=KYCResponse)
@@ -146,7 +190,8 @@ async def verify_kyc(
                 "face_match": response.verification_result.get('face_match', False) if response.verification_result else False,
                 "metadata": getattr(payload, 'metadata', {})
             },
-            request=request_with_id
+            request=request_with_id,
+            request_payload=payload
         )
         
         # Return the response object which will be converted to JSON by FastAPI
@@ -183,7 +228,8 @@ async def verify_kyc(
                 "document_type": getattr(payload.document_data, 'document_type', None) if hasattr(payload, 'document_data') else None,
                 "metadata": getattr(payload, 'metadata', {})
             },
-            request=request_with_id
+            request=request_with_id,
+            request_payload=payload if hasattr(payload, 'document_data') else None
         )
         
         raise HTTPException(

@@ -79,7 +79,8 @@ async def screen_aml(
                 "match_count": len(response.matches),
                 "details": response.details
             },
-            request=request_with_id
+            request=request_with_id,
+            request_payload=payload
         )
         
         return response
@@ -113,7 +114,8 @@ async def screen_aml(
                 "full_name": payload.full_name,
                 "nationality": payload.nationality
             },
-            request=request_with_id
+            request=request_with_id,
+            request_payload=payload
         )
         
         raise HTTPException(
