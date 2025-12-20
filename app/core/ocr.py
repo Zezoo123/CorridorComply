@@ -361,6 +361,11 @@ def extract_mrz_from_image(image: Image.Image) -> Optional[np.ndarray]:
         numpy array of the MRZ region, or None if not found
     """
     try:
+        # Ensure image is fully loaded and in RGB mode
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+        image.load()  # Force load all pixel data
+        
         # Convert PIL Image to numpy array (RGB)
         img_array = np.array(image)
         
@@ -391,20 +396,40 @@ def extract_mrz_from_image(image: Image.Image) -> Optional[np.ndarray]:
         return None
 
 
-def validate_document_ocr(document_image: Image.Image) -> Dict[str, Any]:
+def validate_document_ocr(document_image: Image.Image, document_type: Optional[str] = None, country_code: Optional[str] = None) -> Dict[str, Any]:
     """
-    Validate document using OCR to extract and parse MRZ data.
+    Validate document using OCR to extract and parse document data.
+    
+    For passports: Extracts and parses MRZ (Machine Readable Zone) data
+    For ID cards: Uses general OCR with country-specific rules when available
     
     Args:
         document_image: PIL Image of the document
+        document_type: Optional document type (e.g., 'passport', 'id_card', 'national_id')
+        country_code: Optional ISO 2-letter country code for country-specific processing
         
     Returns:
         Dict containing:
             - valid: bool - whether document validation passed
-            - mrz_data: dict - parsed MRZ data
+            - mrz_data: dict - parsed MRZ data (for passports) or extracted_data (for IDs)
             - error: Optional[str] - error message if any
             - details: list - validation details
     """
+    # Route to ID OCR for non-passport documents
+    if document_type and document_type.lower() not in ['passport', 'pass']:
+        from .id_ocr import validate_id_ocr
+        logger.info(f"Using ID OCR for document type: {document_type}")
+        result = validate_id_ocr(document_image, country_code or 'US', document_type)
+        # Convert to same format as MRZ validation
+        return {
+            "valid": result.get("valid", False),
+            "mrz_data": result.get("extracted_data"),  # Use same key for consistency
+            "error": result.get("error"),
+            "details": result.get("details", []),
+            "ocr_confidence": result.get("ocr_confidence", 0.0)
+        }
+    
+    # Default: MRZ extraction for passports
     try:
         # Extract MRZ region
         mrz_image = extract_mrz_from_image(document_image)
