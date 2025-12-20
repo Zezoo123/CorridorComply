@@ -91,48 +91,167 @@ def generate_request_id() -> str:
 
 ---
 
+### `app/core/ocr.py`
+
+**Purpose:** Document OCR validation with support for multiple document types.
+
+**Key Functions:**
+
+**`validate_document_ocr()`:**
+```python
+def validate_document_ocr(
+    document_image: Image.Image,
+    document_type: Optional[str] = None,
+    country_code: Optional[str] = None
+) -> Dict[str, Any]:
+```
+
+**What it does:**
+1. **Routes based on document type:**
+   - Passports → MRZ extraction and parsing
+   - ID cards, National IDs, Driving Licenses → ID OCR with country rules
+2. **For passports:**
+   - Extracts MRZ region from document
+   - Uses EasyOCR to read MRZ text
+   - Parses MRZ using TD3 format checker
+   - Validates checksums and expiry dates
+3. **For ID cards:**
+   - Routes to `id_ocr.validate_id_ocr()`
+   - Uses country-specific rules if available
+   - Falls back to generic OCR patterns
+
+**Why this approach:**
+- Different document types require different processing
+- Passports have standardized MRZ format
+- ID cards vary by country and need flexible extraction
+- Allows adding new document types easily
+
+---
+
+### `app/core/id_ocr.py`
+
+**Purpose:** ID card OCR processing for non-passport documents.
+
+**Key Functions:**
+
+**`validate_id_ocr()`:**
+```python
+def validate_id_ocr(
+    document_image: Image.Image,
+    country_code: str,
+    document_type: str
+) -> Dict[str, Any]:
+```
+
+**What it does:**
+1. **Extracts text** from entire document using EasyOCR
+2. **Loads country-specific rules** from `premium/corridor_rules/` if available
+3. **Extracts structured fields:**
+   - Document number
+   - Name
+   - Date of birth
+   - Expiry date
+   - Address (if available)
+4. **Uses extraction patterns:**
+   - Country-specific regex patterns from rules files
+   - Generic patterns as fallback
+5. **Validates extracted data** and returns results
+
+**Country Rules:**
+- Rules stored in JSON format: `{country_code}_{document_type}_rules.json`
+- Contains regex patterns for field extraction
+- Can define field positions for region-based extraction
+- Supports multiple languages
+
+**Generic Extraction (Fallback):**
+- Document number: Alphanumeric patterns, "ID:", "DOC:" prefixes
+- Dates: Various formats (DD/MM/YYYY, YYYY-MM-DD, etc.)
+- Names: "NAME:", "FULL NAME:" prefixes
+
+**Why this structure:**
+- Flexible for different countries
+- Easy to add new country rules
+- Falls back gracefully when no rules available
+- Supports both structured and unstructured ID cards
+
+---
+
 ### `app/core/logger.py`
 
-**Purpose:** Audit logging system.
+**Purpose:** Audit logging system with comprehensive request tracking.
 
 ```python
 def log_audit_event(
-    request_id: str,
-    check_type: str,
-    action: str,
-    result: Dict[str, Any],
-    metadata: Optional[Dict[str, Any]] = None
+    event_type: str,
+    data: Dict[str, Any],
+    request: Any = None,
+    request_payload: Optional[Any] = None
 ):
 ```
 
 **What it does:**
-1. **Creates log directory** if it doesn't exist
-2. **Builds log entry** with:
-   - Timestamp (ISO format)
-   - Request ID (for tracking)
-   - Check type (kyc/aml/risk)
-   - Action performed
-   - Result data
-   - Metadata (additional context)
-3. **Writes to daily log file** (`audit_YYYY-MM-DD.jsonl`)
+1. **Creates log directory** if it doesn't exist (`logs/audit/`)
+2. **Sanitizes request payload** (removes large binary data like base64 images)
+3. **Builds log entry** with:
+   - Timestamp (ISO 8601 format)
+   - Event type (kyc_verification, aml_screening, combined_risk_assessment)
+   - Request ID (from X-Request-ID header)
+   - Request payload (sanitized)
+   - Risk score and risk level
+   - Match summary (verification results, sanctions matches, etc.)
+   - Request metadata (client IP, user agent, method, URL)
+4. **Writes to daily log file** (`logs/audit/audit.log`) with daily rotation
+5. **Keeps logs for 30 days** (configurable)
 
-**Why JSONL format:**
-- One JSON object per line
-- Easy to parse and search
+**Why JSON format:**
+- Structured data for easy parsing
+- One JSON object per line (JSONL format)
 - Can append without reading entire file
-- Good for log aggregation tools
+- Good for log aggregation tools (ELK, Splunk, etc.)
+- Easy to query and analyze
+
+**Request Payload Sanitization:**
+- Large base64 image data is replaced with size indicators
+- Long strings are truncated (>1000 chars)
+- Preserves all other payload fields
+- Handles nested dictionaries and lists
 
 **Example log entry:**
 ```json
 {
   "timestamp": "2024-01-15T10:30:45.123456",
-  "request_id": "550e8400-e29b-41d4-a716-446655440000",
-  "check_type": "kyc",
-  "action": "verify",
-  "result": {"status": "pass", "risk_score": 0},
-  "metadata": {"document_type": "passport"}
+  "level": "INFO",
+  "logger": "audit",
+  "message": "Audit event",
+  "event_type": "kyc_verification",
+  "request_id": "test_kyc_123",
+  "client_ip": "127.0.0.1",
+  "method": "POST",
+  "url": "http://localhost:8000/api/v1/kyc/verify",
+  "request_payload": {
+    "document_data": {
+      "document_type": "passport",
+      "document_number": "P1234567",
+      "first_name": "John",
+      "last_name": "Doe"
+    },
+    "document_image_base64": "<base64_image_data: 12345 bytes>",
+    "selfie_image_base64": "<base64_image_data: 12345 bytes>"
+  },
+  "status": "success",
+  "risk_score": 45.5,
+  "risk_level": "medium",
+  "verification_result": {
+    "document_verified": true,
+    "face_match": true
+  }
 }
 ```
+
+**Safe Log Rotation:**
+- Custom `SafeTimedRotatingFileHandler` ensures directory exists before rotation
+- Prevents crashes during log rotation
+- Handles edge cases gracefully
 
 ---
 
@@ -461,37 +580,55 @@ if score >= SIMILARITY_THRESHOLD:  # 85%
 
 ### `app/services/kyc_service.py`
 
-**Purpose:** Performs KYC (Know Your Customer) verification.
+**Purpose:** Performs KYC (Know Your Customer) verification with document OCR and face matching.
 
 ```python
-@staticmethod
-def verify(
+@classmethod
+async def process_kyc(
+    cls,
     request_id: str,
     full_name: str,
     dob: str,
     nationality: str,
     document_type: str,
     document_number: str,
-    # ... optional fields
+    document_image: Image.Image,
+    selfie_image: Image.Image,
+    expiry_date: Optional[str] = None,
+    issuing_country: Optional[str] = None
 ):
 ```
 
 **What it does:**
-1. **Validates all fields** using FieldValidator
-2. **Detects missing fields** automatically
-3. **Calculates risk score** using RiskEngine
-4. **Determines status** (pass/fail/review) based on risk level
-5. **Builds detailed response** with validation results
-6. **Logs audit event** with request_id
+1. **Processes document and selfie images** (calculates size, extracts metadata)
+2. **Performs document OCR validation** using `validate_document_ocr()`
+   - For passports: Extracts and parses MRZ (Machine Readable Zone)
+   - For ID cards: Uses general OCR with country-specific rules
+   - Automatically routes based on document type
+3. **Compares extracted data** with request data (MRZ vs provided fields)
+4. **Performs face matching** between document photo and selfie
+5. **Calculates risk score** using RiskEngine
+6. **Determines status** (pass/fail/review) based on risk level
+7. **Builds detailed response** with validation results
+8. **Logs audit event** with request_id and all relevant data
 
-**Validation integration:**
+**Document OCR Integration:**
 ```python
-validation_result = FieldValidator.validate_kyc_fields(...)
-# Uses validation results to:
-# - Set document_valid flag
-# - Add missing_fields to risk calculation
-# - Include validation errors in details
+document_validation = validate_document_ocr(
+    document_image,
+    document_type=document_type,
+    country_code=issuing_country or nationality
+)
+# Automatically routes to:
+# - MRZ extraction for passports
+# - ID OCR for id_card, national_id, driving_license, etc.
 ```
+
+**Image Processing:**
+- Handles small/corrupted images gracefully
+- Estimates size from dimensions if image can't be saved
+- Converts images to proper format for face matching
+- Handles different image channel formats (RGB, grayscale, etc.)
 
 **Status determination:**
 - HIGH risk → "fail"
@@ -502,6 +639,7 @@ validation_result = FieldValidator.validate_kyc_fields(...)
 - Helps users understand why verification passed/failed
 - Useful for compliance teams
 - Makes debugging easier
+- Includes OCR confidence scores and extraction details
 
 ---
 
@@ -770,12 +908,22 @@ Let's trace a KYC verification request:
 - Request IDs for tracking
 - Comprehensive validation
 - Detailed risk scoring
-- Audit logging
+- **Comprehensive audit logging** with request payload, risk scores, and match summaries
+- **Multi-document type support** (passports, ID cards, national IDs, driving licenses)
+- **Country-specific OCR rules** for ID card processing
+- **Graceful image processing** for small/corrupted images
 - Flexible API design
+
+**Recent Enhancements:**
+- **Audit Logging:** All API endpoints now log comprehensive audit events with request payloads, risk scores, match summaries, and timestamps
+- **ID Card Processing:** Support for ID cards from different countries with country-specific extraction rules
+- **Image Processing:** Improved handling of small test images and corrupted image data
+- **Face Matching:** Enhanced to handle different image channel formats (RGB, grayscale, 2-channel, etc.)
 
 This architecture makes the code:
 - **Testable:** Each layer can be tested independently
 - **Maintainable:** Clear separation of concerns
-- **Extensible:** Easy to add new features
-- **Debuggable:** Request IDs and logging help trace issues
+- **Extensible:** Easy to add new features (document types, country rules, etc.)
+- **Debuggable:** Request IDs and comprehensive logging help trace issues
+- **Compliant:** Full audit trail for regulatory requirements
 

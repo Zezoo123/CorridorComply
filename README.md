@@ -47,12 +47,15 @@ pytest tests/test_sanctions_loader.py -v
 ### Phase 1 – MVP (Open Source)
 
 - Basic document verification (OCR)
+  - Passport MRZ extraction and validation
+  - ID card OCR with country-specific rules support
+  - Support for multiple document types (passport, id_card, national_id, driving_license)
 - Face match (selfie vs document)
 - Simple KYC risk scoring
 - Sanctions screening (UN, OFAC, EU, UK)
 - Fuzzy name matching for PEP detection
 - Basic FastAPI backend
-- Simple JSON audit logs
+- Comprehensive JSON audit logs with request payload, risk scores, and match summaries
 
 **Goal:** Create a functional KYC + AML screening pipeline anyone can run locally.
 
@@ -92,11 +95,17 @@ pytest tests/test_sanctions_loader.py -v
 
 ### KYC Core
 
-- OCR extraction (EasyOCR/Tesseract)
-- Document field parsing
+- **Document OCR Processing**
+  - Passport MRZ (Machine Readable Zone) extraction and validation
+  - ID card OCR with country-specific rules support
+  - Support for multiple document types (passport, id_card, national_id, driving_license, residence_permit)
+  - Automatic routing based on document type
+  - Generic OCR fallback for countries without specific rules
+- Document field parsing and validation
 - Face-to-document matching (DeepFace)
 - Expiry date and MRZ validation
 - Basic identity risk scoring
+- Graceful handling of small/corrupted images
 
 ### AML Core
 
@@ -135,7 +144,13 @@ pytest tests/test_sanctions_loader.py -v
 
 ### Transparency
 
-- Simple audit logs
+- **Comprehensive Audit Logging**
+  - JSON logs written to `/logs/audit/` directory
+  - Includes request payload (sanitized for large binary data)
+  - Includes risk scores and match summaries
+  - Timestamped with ISO 8601 format
+  - Daily log rotation with 30-day retention
+  - Verification script included (`scripts/verify_audit_logging.py`)
 - Explainable decision outputs
 - Public documentation
 
