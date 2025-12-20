@@ -36,11 +36,19 @@ class FaceMatchingService:
             }
         """
         try:
-            # Convert to RGB if it's BGR (OpenCV format)
-            if image.shape[2] == 3:  # RGB
+            # Ensure image has 3 channels (RGB) for OpenCV/DeepFace
+            if len(image.shape) == 2:  # Grayscale (2D array)
+                rgb_image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+            elif image.shape[2] == 2:  # 2 channels (LA mode)
+                # Convert 2-channel to RGB by taking first channel
+                rgb_image = cv2.cvtColor(image[:, :, 0], cv2.COLOR_GRAY2RGB)
+            elif image.shape[2] == 3:  # RGB (already correct)
                 rgb_image = image
-            else:  # BGR to RGB
-                rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            elif image.shape[2] == 4:  # RGBA
+                rgb_image = cv2.cvtColor(image, cv2.COLOR_RGBA2RGB)
+            else:  # Unexpected number of channels, try to convert
+                logger.warning(f"Image has {image.shape[2]} channels, attempting conversion to RGB")
+                rgb_image = cv2.cvtColor(image[:, :, 0], cv2.COLOR_GRAY2RGB)
             
             # Try with simpler parameters first (compatible with newer DeepFace versions)
             try:
@@ -121,8 +129,47 @@ class FaceMatchingService:
         """
         try:
             # Convert PIL Images to numpy arrays
-            doc_img = np.array(document_image)
-            selfie_img = np.array(selfie_image)
+            # Handle cases where image can't be fully loaded (e.g., 1x1 test images)
+            # Also handle different image modes (L, LA, P, etc.) and convert to RGB
+            try:
+                # Convert to RGB mode if needed (handles L, LA, P, RGBA, etc.)
+                if document_image.mode != 'RGB':
+                    document_image = document_image.convert('RGB')
+                doc_img = np.array(document_image)
+                # Ensure we have 3 channels (RGB)
+                if len(doc_img.shape) == 2:  # Grayscale (2D array)
+                    doc_img = cv2.cvtColor(doc_img, cv2.COLOR_GRAY2RGB)
+                elif doc_img.shape[2] == 2:  # 2 channels (LA mode)
+                    # Convert 2-channel to RGB by taking first channel and duplicating
+                    doc_img = cv2.cvtColor(doc_img[:, :, 0], cv2.COLOR_GRAY2RGB)
+                elif doc_img.shape[2] == 4:  # RGBA
+                    doc_img = cv2.cvtColor(doc_img, cv2.COLOR_RGBA2RGB)
+                elif doc_img.shape[2] != 3:  # Unexpected number of channels
+                    logger.warning(f"Document image has {doc_img.shape[2]} channels, converting to RGB")
+                    doc_img = cv2.cvtColor(doc_img[:, :, 0], cv2.COLOR_GRAY2RGB)
+            except (OSError, IOError, Exception) as e:
+                logger.warning(f"Could not convert document image to numpy array: {str(e)}")
+                raise FaceMatchingError(f"Document image cannot be processed: {str(e)}")
+            
+            try:
+                # Convert to RGB mode if needed
+                if selfie_image.mode != 'RGB':
+                    selfie_image = selfie_image.convert('RGB')
+                selfie_img = np.array(selfie_image)
+                # Ensure we have 3 channels (RGB)
+                if len(selfie_img.shape) == 2:  # Grayscale (2D array)
+                    selfie_img = cv2.cvtColor(selfie_img, cv2.COLOR_GRAY2RGB)
+                elif selfie_img.shape[2] == 2:  # 2 channels (LA mode)
+                    # Convert 2-channel to RGB by taking first channel and duplicating
+                    selfie_img = cv2.cvtColor(selfie_img[:, :, 0], cv2.COLOR_GRAY2RGB)
+                elif selfie_img.shape[2] == 4:  # RGBA
+                    selfie_img = cv2.cvtColor(selfie_img, cv2.COLOR_RGBA2RGB)
+                elif selfie_img.shape[2] != 3:  # Unexpected number of channels
+                    logger.warning(f"Selfie image has {selfie_img.shape[2]} channels, converting to RGB")
+                    selfie_img = cv2.cvtColor(selfie_img[:, :, 0], cv2.COLOR_GRAY2RGB)
+            except (OSError, IOError, Exception) as e:
+                logger.warning(f"Could not convert selfie image to numpy array: {str(e)}")
+                raise FaceMatchingError(f"Selfie image cannot be processed: {str(e)}")
             
             # Check face detection in both images first
             doc_faces = cls.detect_faces(doc_img)
