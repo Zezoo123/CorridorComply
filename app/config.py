@@ -25,6 +25,10 @@ CORS_ORIGINS: List[str] = ["*"]
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 
+# Sanctions Update Settings
+SANCTIONS_UPDATE_INTERVAL_DAYS = int(os.getenv("SANCTIONS_UPDATE_INTERVAL_DAYS", "7"))  # Update weekly by default
+SANCTIONS_AUTO_UPDATE_ENABLED = os.getenv("SANCTIONS_AUTO_UPDATE_ENABLED", "true").lower() == "true"
+
 class AppConfig:
     """Application configuration with type hints"""
     

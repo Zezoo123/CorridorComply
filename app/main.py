@@ -36,6 +36,71 @@ app.include_router(kyc.router, prefix="/api/v1/kyc", tags=["KYC"])
 app.include_router(aml.router, prefix="/api/v1/aml", tags=["AML"])
 app.include_router(risk.router, prefix="/api/v1/risk", tags=["Risk"])
 
+# Startup event: Check and update sanctions lists if needed
+@app.on_event("startup")
+async def startup_sanctions_update():
+    """
+    Check if sanctions lists need updating on API server startup.
+    Updates automatically if lists are older than configured interval.
+    """
+    from .config import SANCTIONS_AUTO_UPDATE_ENABLED, SANCTIONS_UPDATE_INTERVAL_DAYS
+    from .services.sanctions_loader import SanctionsLoader
+    import subprocess
+    import sys
+    from pathlib import Path
+    
+    if not SANCTIONS_AUTO_UPDATE_ENABLED:
+        logger.info("Sanctions auto-update is disabled (set SANCTIONS_AUTO_UPDATE_ENABLED=true to enable)")
+        return
+    
+    try:
+        logger.info("Checking if sanctions lists need updating...")
+        needs_update, age_days = SanctionsLoader.check_if_update_needed(
+            update_interval_days=SANCTIONS_UPDATE_INTERVAL_DAYS
+        )
+        
+        if needs_update:
+            if age_days is not None:
+                logger.info(f"Sanctions lists are {age_days:.1f} days old (threshold: {SANCTIONS_UPDATE_INTERVAL_DAYS} days)")
+            logger.info("Starting automatic sanctions list update...")
+            
+            # Run the update script in background (non-blocking)
+            script_path = Path(__file__).parent.parent / "scripts" / "update_sanctions.py"
+            if script_path.exists():
+                # Run update in background thread to not block server startup
+                import asyncio
+                import threading
+                
+                def run_update():
+                    try:
+                        result = subprocess.run(
+                            [sys.executable, str(script_path)],
+                            capture_output=True,
+                            text=True,
+                            timeout=1800  # 30 minute timeout
+                        )
+                        if result.returncode == 0:
+                            logger.info("✅ Sanctions lists updated successfully")
+                            # Clear cache so new data is loaded
+                            SanctionsLoader.clear_cache()
+                        else:
+                            logger.warning(f"⚠️  Sanctions update completed with warnings (exit code: {result.returncode})")
+                    except Exception as e:
+                        logger.error(f"Error during sanctions update: {str(e)}")
+                
+                # Run in background thread
+                update_thread = threading.Thread(target=run_update, daemon=True)
+                update_thread.start()
+                logger.info("Sanctions update running in background...")
+            else:
+                logger.warning(f"Update script not found: {script_path}")
+        else:
+            logger.info(f"Sanctions lists are up to date (age: {age_days:.1f} days)")
+            
+    except Exception as e:
+        logger.error(f"Error checking/updating sanctions lists: {str(e)}", exc_info=True)
+        # Don't fail startup if update check fails
+
 @app.get("/")
 async def root():
     """Root endpoint that returns a welcome message"""

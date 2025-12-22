@@ -1,6 +1,6 @@
 import pandas as pd
 from pathlib import Path
-from typing import Optional, ClassVar, List, Set, Dict, Any, Union
+from typing import Optional, ClassVar, List, Set, Dict, Any, Union, Tuple
 import logging
 import re
 from datetime import datetime
@@ -135,6 +135,49 @@ class SanctionsLoader:
         """Clear the cached sanctions data."""
         cls._cache = None
         logger.debug("Sanctions cache cleared")
+    
+    @classmethod
+    def check_if_update_needed(cls, update_interval_days: int = 7) -> Tuple[bool, Optional[float]]:
+        """
+        Check if sanctions lists need to be updated based on file age.
+        
+        Args:
+            update_interval_days: Number of days after which update is needed (default: 7)
+            
+        Returns:
+            Tuple of (needs_update: bool, age_days: Optional[float])
+            Returns (True, age_days) if update is needed, (False, age_days) if not
+        """
+        try:
+            sanctions_dir = Path(__file__).parent.parent / "data" / "sanctions" / "combined"
+            sanctions_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Find latest combined file
+            try:
+                latest_file = cls._find_latest_sanctions_file(sanctions_dir)
+            except FileNotFoundError:
+                # No combined file exists - definitely needs update
+                logger.info("No combined sanctions file found - update needed")
+                return True, None
+            
+            # Check file age
+            file_mtime = latest_file.stat().st_mtime
+            age_seconds = datetime.now().timestamp() - file_mtime
+            age_days = age_seconds / 86400  # Convert to days
+            
+            needs_update = age_days >= update_interval_days
+            
+            if needs_update:
+                logger.info(f"Sanctions file is {age_days:.1f} days old (threshold: {update_interval_days} days) - update needed")
+            else:
+                logger.debug(f"Sanctions file is {age_days:.1f} days old - no update needed yet")
+            
+            return needs_update, age_days
+            
+        except Exception as e:
+            logger.error(f"Error checking if update needed: {str(e)}")
+            # On error, assume update is needed to be safe
+            return True, None
 
 # For backward compatibility
 def load_sanctions(path: Optional[Union[Path, str]] = None) -> pd.DataFrame:
