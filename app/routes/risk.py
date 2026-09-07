@@ -33,7 +33,7 @@ async def get_combined_risk(
     The combined risk score weights AML at 60% and KYC at 40% when both are provided.
     """
     # Get or generate request ID
-    request_id = request.headers.get('X-Request-ID', f"req_{str(uuid.uuid4())[:8]}")
+    request_id = getattr(request.state, "request_id", None) or request.headers.get("X-Request-ID") or f"req_{uuid.uuid4().hex[:8]}"
     
     try:
         # Log the start of combined risk assessment

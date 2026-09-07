@@ -18,8 +18,11 @@ AUDIT_LOG_RETENTION_DAYS = 30  # Number of days to keep audit logs
 AUDIT_LOG_MAX_SIZE = 10 * 1024 * 1024  # 10MB per log file
 AUDIT_LOG_BACKUP_COUNT = 5  # Number of backup files to keep
 
-# CORS
-CORS_ORIGINS: List[str] = ["*"]
+# CORS (comma-separated list of allowed origins; empty disables browser access)
+CORS_ORIGINS: List[str] = [o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()]
+
+# Sanctions data location (contains raw/, normalized/, combined/)
+SANCTIONS_DATA_DIR = Path(os.getenv("SANCTIONS_DATA_DIR", str(BASE_DIR / "app" / "data" / "sanctions")))
 
 # Application Settings
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")

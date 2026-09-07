@@ -6,9 +6,6 @@ from PIL import Image
 import io
 import base64
 
-from app.core.ocr import validate_document_ocr
-from app.services.face_match import FaceMatchingService
-
 logger = logging.getLogger(__name__)
 
 class KYCService:
@@ -45,6 +42,11 @@ class KYCService:
             Dict with verification results
         """
         try:
+            # Heavy ML dependencies are imported lazily so the API (and the
+            # screening-only deployment) can start without TensorFlow/EasyOCR.
+            from app.core.ocr import validate_document_ocr
+            from app.services.face_match import FaceMatchingService
+
             logger.info(f"Starting KYC processing for request {request_id}")
             
             # Process document and selfie images

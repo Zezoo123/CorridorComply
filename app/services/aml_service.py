@@ -3,7 +3,6 @@ import pandas as pd
 from .sanctions_loader import SanctionsLoader
 from .risk_engine import RiskEngine
 from ..core.fuzzy_match import fuzzy_name_match
-from ..core.logger import log_audit_event
 
 SIMILARITY_THRESHOLD = 85  # adjustable
 
@@ -89,22 +88,5 @@ class AMLService:
             "details": details,
             "matches": matches,
         }
-        
-        # Log audit event
-        log_audit_event(
-            event_type="aml_screening",
-            data={
-                "status": "success",
-                "request_id": request_id,
-                "full_name": full_name,
-                "nationality": nationality,
-                "sanctions_match": sanctions_match,
-                "pep_match": pep_match,
-                "risk_score": risk_result["risk_score"],
-                "risk_level": risk_result["risk_level"].value,
-                "match_count": len(matches)
-            },
-            request=None  # No request object available in the service layer
-        )
         
         return result
