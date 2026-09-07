@@ -11,6 +11,7 @@ class SanctionsLoader:
     """Loader for combined sanctions data with caching and data normalization."""
     
     _cache: ClassVar[Optional[pd.DataFrame]] = None
+    _cache_version: ClassVar[Optional[str]] = None
     _REQUIRED_COLUMNS = {"source", "record_type", "dataid", "name"}
     _STRING_COLUMNS = [
         "aliases", "nationalities", "pob_cities", "pob_countries",
@@ -126,6 +127,7 @@ class SanctionsLoader:
             # Cache the result if no specific path was provided
             if use_cache:
                 cls._cache = df
+                cls._cache_version = cls._version_of(path)
             return df
             
         except Exception as e:
@@ -134,9 +136,31 @@ class SanctionsLoader:
 
     @classmethod
     def clear_cache(cls) -> None:
-        """Clear the cached sanctions data."""
+        """Clear the cached sanctions data (and the screening index built from it)."""
         cls._cache = None
+        cls._cache_version = None
+        try:
+            from .screening import reset_index
+            reset_index()
+        except ImportError:
+            pass
         logger.debug("Sanctions cache cleared")
+
+    @staticmethod
+    def _version_of(path: Path) -> str:
+        """Identify a list file for evidence: its name and modification time."""
+        try:
+            mtime = datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%dT%H:%M:%S")
+        except OSError:
+            mtime = "unknown"
+        return f"{path.name}@{mtime}"
+
+    @classmethod
+    def current_version(cls) -> str:
+        """Version identifier of the list currently loaded (loads it if needed)."""
+        if cls._cache is None:
+            cls.load()
+        return cls._cache_version or "unknown"
     
     @classmethod
     def check_if_update_needed(cls, update_interval_days: int = 7) -> Tuple[bool, Optional[float]]:

@@ -138,6 +138,14 @@ class RiskEngine:
                         "severity": "high",
                         "description": "DOB match with sanctions list"
                     })
+                elif matches and all(m.get("dob_match") is False for m in matches):
+                    # Every candidate has a DOB on file and none agrees: likely a namesake
+                    risk_score -= 15
+                    risk_factors.append({
+                        "type": RiskFactorType.AML_SANCTIONS.value,
+                        "severity": "low",
+                        "description": "Date of birth differs from every matching list entry"
+                    })
                 
                 if any(m.get("country_match") for m in matches if m.get("country_match") is not None):
                     risk_score += 5
@@ -175,8 +183,8 @@ class RiskEngine:
                 "description": f"Multiple matches found ({len(matches)} matches)"
             })
         
-        # Cap at 100
-        risk_score = min(100, risk_score)
+        # Clamp to 0-100
+        risk_score = max(0, min(100, risk_score))
         
         risk_level = cls.calculate_risk_level(risk_score)
         
@@ -196,7 +204,8 @@ class RiskEngine:
         document_expired: bool = False,
         document_expiring_soon: bool = False,
         missing_fields: List[str] = None,
-        data_quality_issues: List[str] = None
+        data_quality_issues: List[str] = None,
+        mrz_mismatches: List[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Calculate comprehensive KYC risk score
@@ -291,6 +300,17 @@ class RiskEngine:
                 "severity": "medium" if len(missing_fields) >= 2 else "low",
                 "description": f"Missing required fields: {', '.join(missing_fields)}"
             })
+        
+        # Submitted data disagrees with the machine-readable zone
+        if mrz_mismatches:
+            risk_score += min(30, 10 * len(mrz_mismatches))
+            for mm in mrz_mismatches:
+                risk_factors.append({
+                    "type": RiskFactorType.KYC_VALIDATION.value,
+                    "severity": "medium" if mm.get("similarity", 0) > 0.7 else "high",
+                    "description": f"MRZ data mismatch: {mm.get('field')} (MRZ: {mm.get('mrz_value')}, Request: {mm.get('request_value')})",
+                    "field": mm.get("field"),
+                })
         
         # Data quality issues
         if data_quality_issues:
