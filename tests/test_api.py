@@ -2,6 +2,7 @@
 API tests using FastAPI's TestClient (no running server required).
 """
 import base64
+import uuid
 from io import BytesIO
 
 import pytest
@@ -59,18 +60,19 @@ def test_aml_screen_no_match(client):
 
 
 def test_aml_screen_match_and_audit_entry(client):
+    rid = f"audit-aml-{uuid.uuid4().hex[:8]}"  # the audit log persists across runs
     r = client.post(
         "/api/v1/aml/screen",
         json={"full_name": "Mohammad Reza Naqdi", "dob": "1953-03-11", "nationality": "IR"},
-        headers={"X-Request-ID": "audit-aml-1"},
+        headers={"X-Request-ID": rid},
     )
     assert r.status_code == 200
     body = r.json()
-    assert body["request_id"] == "audit-aml-1"
+    assert body["request_id"] == rid
     assert body["sanctions_match"] is True
     assert body["risk_level"] == "high"
 
-    entries = [e for e in read_audit_entries() if e.get("request_id") == "audit-aml-1"]
+    entries = [e for e in read_audit_entries() if e.get("request_id") == rid]
     assert len(entries) == 1, "exactly one audit event per screening"
     entry = entries[0]
     assert entry["event_type"] == "aml_screening"
@@ -103,14 +105,15 @@ def test_unknown_route_is_404(client):
 @pytest.mark.slow
 def test_kyc_verify_end_to_end_with_tiny_images(client):
     """Loads OCR and face-matching models; the 1x1 images fail gracefully."""
-    r = client.post("/api/v1/kyc/verify", json=kyc_payload(), headers={"X-Request-ID": "audit-kyc-1"})
+    rid = f"audit-kyc-{uuid.uuid4().hex[:8]}"
+    r = client.post("/api/v1/kyc/verify", json=kyc_payload(), headers={"X-Request-ID": rid})
     assert r.status_code == 200
     body = r.json()
     assert body["status"] == "completed"
     assert body["verification_result"]["document_verified"] is False
     assert body["verification_result"]["face_match"] is False
     assert body["risk_level"] == "high"
-    entries = [e for e in read_audit_entries() if e.get("request_id") == "audit-kyc-1"]
+    entries = [e for e in read_audit_entries() if e.get("request_id") == rid]
     assert len(entries) == 1
     assert entries[0]["request_payload"]["document_image_base64"].startswith("<base64_image_data")
 
@@ -121,11 +124,12 @@ def test_combined_risk_end_to_end(client):
         "aml_data": {"full_name": "Jonathan Whitfield", "dob": "1990-01-01", "nationality": "GB"},
         "kyc_data": kyc_payload(),
     }
-    r = client.post("/api/v1/risk/combined", json=payload, headers={"X-Request-ID": "audit-risk-1"})
+    rid = f"audit-risk-{uuid.uuid4().hex[:8]}"
+    r = client.post("/api/v1/risk/combined", json=payload, headers={"X-Request-ID": rid})
     assert r.status_code == 200
     body = r.json()
     assert body["aml_risk_level"] == "low"
     assert body["kyc_risk_level"] == "high"
     assert 0 <= body["combined_risk_score"] <= 100
-    entries = [e for e in read_audit_entries() if e.get("request_id") == "audit-risk-1"]
+    entries = [e for e in read_audit_entries() if e.get("request_id") == rid]
     assert any(e["event_type"] == "combined_risk_assessment" for e in entries)
