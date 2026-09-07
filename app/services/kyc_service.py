@@ -147,86 +147,30 @@ class KYCService:
             
             logger.info(f"Face matching result: matched={face_match_result['matched']}, score={face_match_result['score']:.2f}")
             
-            # Calculate risk score based on validations
-            risk_score = 0  # Default to 0 (lowest risk)
-            risk_factors = []
-            
-            # Check document validation
+            # Risk score comes from the shared RiskEngine so KYC, AML and the
+            # combined endpoint can never disagree about thresholds.
+            from app.services.risk_engine import RiskEngine
+
             doc_valid = document_validation.get("valid", False)
-            expiry_validation = document_validation.get("expiry_validation", {})
-            
-            # Check if document is expired
-            if expiry_validation.get("is_expired", False):
-                risk_score += 30
-                risk_factors.append({
-                    "description": f"Document expired on {expiry_validation.get('expiry_date_formatted', 'unknown')}",
-                    "severity": "high",
-                    "type": "document_expired",
-                    "days_expired": expiry_validation.get("days_expired")
-                })
-            
-            if not doc_valid:
-                risk_score += 50
-                risk_factors.append({
-                    "description": "Document validation failed",
-                    "severity": "high",
-                    "type": "document_validation"
-                })
-            
-            # Check data comparison (MRZ vs request data)
-            if data_comparison:
-                if not data_comparison.get("all_match", False):
-                    mismatch_count = data_comparison.get("mismatch_count", 0)
-                    risk_score += mismatch_count * 10  # 10 points per mismatch
-                    for mismatch in data_comparison.get("mismatches", []):
-                        risk_factors.append({
-                            "description": f"MRZ data mismatch: {mismatch['field']} (MRZ: {mismatch['mrz_value']}, Request: {mismatch['request_value']})",
-                            "severity": "medium" if mismatch.get("similarity", 0) > 0.7 else "high",
-                            "type": "data_mismatch",
-                            "field": mismatch["field"]
-                        })
-                else:
-                    risk_factors.append({
-                        "description": "All MRZ data matches request data",
-                        "severity": "low",
-                        "type": "data_verification"
-                    })
-            
-            # Check face match
+            expiry_validation = document_validation.get("expiry_validation", {}) or {}
             face_matched = face_match_result.get("matched", False)
-            if not face_matched:
-                risk_score += 50
-                risk_factors.append({
-                    "description": "Face match failed",
-                    "severity": "high",
-                    "type": "face_match"
-                })
-            
-            # Cap the risk score at 100
-            risk_score = min(100, risk_score)
-            
-            # Determine risk level
-            if risk_score >= 70:
-                risk_level = "high"
-            elif risk_score >= 30:
-                risk_level = "medium"
-            else:
-                risk_level = "low"
-            
-            # Add passed validations as low severity factors
+            risk = RiskEngine.calculate_kyc_risk_score(
+                document_valid=doc_valid,
+                face_match_score=face_match_result.get("score") if not face_match_result.get("error") else None,
+                face_match_result=face_matched,
+                ocr_quality=document_validation.get("ocr_confidence"),
+                document_expired=bool(expiry_validation.get("is_expired")),
+                mrz_mismatches=(data_comparison or {}).get("mismatches") if data_comparison else None,
+            )
+            risk_score = risk["risk_score"]
+            risk_level = risk["risk_level"].value
+            risk_factors = list(risk["risk_factors"])
             if doc_valid:
-                risk_factors.append({
-                    "description": "Document validation passed",
-                    "severity": "low",
-                    "type": "document_validation"
-                })
-                
+                risk_factors.append({"description": "Document validation passed", "severity": "low", "type": "document_validation"})
             if face_matched:
-                risk_factors.append({
-                    "description": "Face match passed",
-                    "severity": "low",
-                    "type": "face_match"
-                })
+                risk_factors.append({"description": "Face match passed", "severity": "low", "type": "face_match"})
+            if data_comparison and data_comparison.get("all_match"):
+                risk_factors.append({"description": "All MRZ data matches request data", "severity": "low", "type": "data_verification"})
             
             # Prepare verification result structure matching KYCResponse model
             verification_result = {

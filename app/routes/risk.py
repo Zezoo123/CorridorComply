@@ -5,12 +5,13 @@ import uuid
 from fastapi import APIRouter, Request, HTTPException, status
 from typing import Dict, Any, Optional
 import logging
-from starlette.datastructures import Headers
 
 from ..models.risk import CombinedRiskRequest, CombinedRiskResponse, RiskLevel
 from ..services.aml_service import AMLService
 from ..services.kyc_service import KYCService
+from ..services.risk_engine import RiskEngine
 from ..core.logger import log_audit_event
+from .kyc import decode_base64_image
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -66,7 +67,8 @@ async def get_combined_risk(
             request_id=request_id,
             full_name=payload.aml_data.full_name,
             dob=payload.aml_data.dob,
-            nationality=payload.aml_data.nationality
+            nationality=payload.aml_data.nationality,
+            entity_type=payload.aml_data.entity_type,
         )
         
         if not isinstance(aml_result, dict):
@@ -106,18 +108,14 @@ async def get_combined_risk(
                 "issuing_country": payload.kyc_data.document_data.issuing_country
             }
         )
-        # Convert base64 images to PIL Images
-        from PIL import Image, UnidentifiedImageError
-        import base64
-        from io import BytesIO
-        
         try:
-            # Decode and verify document image
+            # Same decoder as /kyc/verify (handles data-URL prefixes and validation)
             try:
-                document_image = Image.open(BytesIO(base64.b64decode(payload.kyc_data.document_image_base64)))
-                selfie_image = Image.open(BytesIO(base64.b64decode(payload.kyc_data.selfie_image_base64)))
-            except (base64.binascii.Error, UnidentifiedImageError) as e:
-                raise ValueError(f"Invalid image data: {str(e)}")
+                document_image = decode_base64_image(payload.kyc_data.document_image_base64)
+                selfie_image = decode_base64_image(payload.kyc_data.selfie_image_base64)
+            except ValueError as e:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                    detail={"error": "Invalid image data", "details": str(e)})
             
             # Use the same KYCService.process_kyc() as the KYC route
             kyc_result = await KYCService.process_kyc(
@@ -128,7 +126,9 @@ async def get_combined_risk(
                 document_type=payload.kyc_data.document_data.document_type,
                 document_number=payload.kyc_data.document_data.document_number,
                 document_image=document_image,
-                selfie_image=selfie_image
+                selfie_image=selfie_image,
+                expiry_date=payload.kyc_data.document_data.expiry_date,
+                issuing_country=payload.kyc_data.document_data.issuing_country,
             )
             
             if not isinstance(kyc_result, dict):
@@ -158,24 +158,17 @@ async def get_combined_risk(
                 }
             )
                 
+        except HTTPException:
+            raise
         except Exception as e:
             error_msg = f"Error processing KYC data: {str(e)}"
             logger.error(error_msg, extra={"request_id": request_id}, exc_info=True)
             raise ValueError(error_msg) from e
         
-        # Calculate combined risk score (weighted average: 60% AML, 40% KYC)
-        aml_score = float(aml_risk_data.get("risk_score", 0))
-        kyc_score = float(kyc_risk_data.get("risk_score", 0))
-        combined_score = (aml_score * 0.6) + (kyc_score * 0.4)
-        combined_score = round(combined_score, 2)  # Round to 2 decimal places
-        
-        # Determine risk level
-        if combined_score >= 70:
-            risk_level = RiskLevel.HIGH
-        elif combined_score >= 30:
-            risk_level = RiskLevel.MEDIUM
-        else:
-            risk_level = RiskLevel.LOW
+        # Combined score comes from the shared RiskEngine (60% AML, 40% KYC)
+        combined = RiskEngine.calculate_combined_risk_score(aml_risk_data, kyc_risk_data)
+        combined_score = combined["risk_score"]
+        risk_level = combined["risk_level"]
         
         # Create response
         response = CombinedRiskResponse(
@@ -203,12 +196,6 @@ async def get_combined_risk(
             }
         )
         
-        # Create request with X-Request-ID header for audit logging
-        headers = dict(request.headers)
-        headers['X-Request-ID'] = request_id
-        request_with_id = Request(scope=request.scope, receive=request.receive)
-        request_with_id._headers = Headers(headers)
-        
         # Log audit event
         audit_data = {
             "status": "success",
@@ -228,7 +215,7 @@ async def get_combined_risk(
         log_audit_event(
             event_type="combined_risk_assessment",
             data=audit_data,
-            request=request_with_id,
+            request=request,
             request_payload=payload
         )
         
@@ -247,12 +234,6 @@ async def get_combined_risk(
             exc_info=True
         )
         
-        # Create request with X-Request-ID header for audit logging
-        headers = dict(request.headers)
-        headers['X-Request-ID'] = request_id
-        request_with_id = Request(scope=request.scope, receive=request.receive)
-        request_with_id._headers = Headers(headers)
-        
         # Log audit event for failure
         log_audit_event(
             event_type="combined_risk_assessment",
@@ -262,7 +243,7 @@ async def get_combined_risk(
                 "has_aml_data": payload.aml_data is not None,
                 "has_kyc_data": payload.kyc_data is not None
             },
-            request=request_with_id,
+            request=request,
             request_payload=payload
         )
         

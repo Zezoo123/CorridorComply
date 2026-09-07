@@ -6,7 +6,6 @@ import logging
 import uuid
 from datetime import datetime
 from typing import Dict, Any
-from starlette.datastructures import Headers
 
 from app.core.logger import log_audit_event
 from app.services.kyc_service import KYCService
@@ -169,12 +168,6 @@ async def verify_kyc(
             }
         )
         
-        # Create request with X-Request-ID header for audit logging
-        headers = dict(request.headers)
-        headers['X-Request-ID'] = request_id
-        request_with_id = Request(scope=request.scope, receive=request.receive)
-        request_with_id._headers = Headers(headers)
-        
         # Create audit log
         log_audit_event(
             event_type="kyc_verification",
@@ -190,7 +183,7 @@ async def verify_kyc(
                 "face_match": response.verification_result.get('face_match', False) if response.verification_result else False,
                 "metadata": getattr(payload, 'metadata', {})
             },
-            request=request_with_id,
+            request=request,
             request_payload=payload
         )
         
@@ -213,12 +206,6 @@ async def verify_kyc(
             exc_info=True
         )
         
-        # Create request with X-Request-ID header for audit logging
-        headers = dict(request.headers)
-        headers['X-Request-ID'] = request_id
-        request_with_id = Request(scope=request.scope, receive=request.receive)
-        request_with_id._headers = Headers(headers)
-        
         # Create error audit log
         log_audit_event(
             event_type="kyc_verification",
@@ -228,7 +215,7 @@ async def verify_kyc(
                 "document_type": getattr(payload.document_data, 'document_type', None) if hasattr(payload, 'document_data') else None,
                 "metadata": getattr(payload, 'metadata', {})
             },
-            request=request_with_id,
+            request=request,
             request_payload=payload if hasattr(payload, 'document_data') else None
         )
         
