@@ -1,0 +1,9 @@
+# Document OCR and face matching. Large downloads; not needed for screening-only deployments.
+opencv-python-headless==4.12.0.88
+imutils==0.5.4
+easyocr==1.7.2
+mrz==0.6.2
+deepface==0.0.96
+retina-face==0.0.17
+tensorflow==2.19.0
+tf-keras
