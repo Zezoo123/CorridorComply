@@ -55,8 +55,23 @@ def sanctions_data_dir(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def client(sanctions_data_dir, monkeypatch):
-    """FastAPI test client with auto-update disabled and test sanctions data."""
+def db(tmp_path, monkeypatch):
+    """A fresh SQLite database for the test, with the schema created."""
+    from app.db import database
+    from app.services import records
+
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'test.db'}")
+    database.reset_db()
+    records._version_cache.clear()
+    database.init_db()
+    yield database
+    database.reset_db()
+    records._version_cache.clear()
+
+
+@pytest.fixture
+def client(sanctions_data_dir, db, monkeypatch):
+    """FastAPI test client with auto-update disabled, test sanctions data and a fresh database."""
     monkeypatch.setenv("SANCTIONS_AUTO_UPDATE_ENABLED", "false")
     from app import config
     monkeypatch.setattr(config, "SANCTIONS_AUTO_UPDATE_ENABLED", False)
@@ -65,6 +80,20 @@ def client(sanctions_data_dir, monkeypatch):
 
     with TestClient(app) as c:
         yield c
+
+
+def add_list_entry(data_dir, *, name, aliases="", record_type="individual", dob="", nationality="", dataid="999"):
+    """Write a new combined file containing the sample list plus one extra entry, and drop the cache."""
+    import time
+    from app.services.sanctions_loader import SanctionsLoader
+
+    time.sleep(0.01)
+    row = f"OFAC,sdn.csv,{dataid},SDN-{dataid},SDN,{record_type},{name},,,,{aliases},{nationality},,,,{dob},{dob[:4] if dob else ''},,,TEST,,2026-09-08,2026-09-08,2026-09-08\n"
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    path = data_dir / "combined" / f"combined_sanctions_{stamp}.csv"
+    path.write_text(SAMPLE_COMBINED_CSV + row)
+    SanctionsLoader.clear_cache()
+    return path
 
 
 AUDIT_LOG = Path("logs/audit/audit.log")
