@@ -103,6 +103,30 @@ class Screening(Base):
         return {f"{m.get('source')}:{m.get('dataid')}" for m in (self.matches or [])}
 
 
+class Decision(Base):
+    """A corridor decision: the ruleset applied, the outcome and every reason that fired."""
+    __tablename__ = "decisions"
+    __table_args__ = (Index("ix_decisions_tenant_created", "tenant_id", "created_at"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
+    customer_id: Mapped[Optional[int]] = mapped_column(ForeignKey("customers.id"), nullable=True, index=True)
+    screening_id: Mapped[Optional[int]] = mapped_column(ForeignKey("screenings.id"), nullable=True)
+    request_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
+    corridor: Mapped[str] = mapped_column(String(5), index=True)
+    ruleset_version: Mapped[str] = mapped_column(String(20))
+    ruleset_status: Mapped[str] = mapped_column(String(10), default="draft")
+    outcome: Mapped[str] = mapped_column(String(10), index=True)
+    risk_score: Mapped[int] = mapped_column(Integer, default=0)
+    reasons: Mapped[List[Dict[str, Any]]] = mapped_column(JSON, default=list)
+    actions: Mapped[List[str]] = mapped_column(JSON, default=list)
+    facts: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict)
+    customer_data: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict)
+    beneficiary_data: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+    screening: Mapped[Optional[Screening]] = relationship()
+
+
 class Alert(Base):
     """Raised when a monitored customer's screening result changes between list versions."""
     __tablename__ = "alerts"

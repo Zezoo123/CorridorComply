@@ -35,7 +35,7 @@ async def logging_middleware(request: Request, call_next):
     return await log_requests_middleware(request, call_next)
 
 # Import and include routers
-from .routes import kyc, aml, risk, screen_ui, records as records_routes  # noqa: E402
+from .routes import kyc, aml, risk, screen_ui, records as records_routes, corridor as corridor_routes  # noqa: E402
 from .db.database import init_db  # noqa: E402
 init_db()  # creates tables for SQLite; other databases use `alembic upgrade head`
 protected = [Depends(require_api_key)]
@@ -43,6 +43,7 @@ app.include_router(kyc.router, prefix="/api/v1/kyc", tags=["KYC"], dependencies=
 app.include_router(aml.router, prefix="/api/v1/aml", tags=["AML"], dependencies=protected)
 app.include_router(risk.router, prefix="/api/v1/risk", tags=["Risk"], dependencies=protected)
 app.include_router(records_routes.router, prefix="/api/v1", tags=["Customers & Monitoring"], dependencies=protected)
+app.include_router(corridor_routes.router, prefix="/api/v1", tags=["Corridor decisions"], dependencies=protected)
 app.include_router(screen_ui.router, tags=["Screening UI"])
 load_keys()  # warn at startup if the API is open
 
