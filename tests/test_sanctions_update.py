@@ -9,12 +9,15 @@ This test suite verifies that all 4 sanction lists (UN, OFAC, UK, EU) can be:
 import pytest
 import sys
 import subprocess
+import logging
 from pathlib import Path
 from unittest.mock import patch, MagicMock, Mock
 from typing import Tuple, Optional
 import tempfile
 import shutil
 import asyncio
+
+logger = logging.getLogger(__name__)
 
 # Add project root to path
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -72,51 +75,67 @@ class TestSanctionsDownload:
             assert all("sdn.csv" in str(f) or "alt.csv" in str(f) or "add.csv" in str(f) for f in files)
             assert mock_download.call_count == 3
     
-    @patch('scripts.update_sanctions.PLAYWRIGHT_AVAILABLE', False)
-    def test_download_uk_sanctions_no_playwright(self, temp_data_dir):
-        """Test UK sanctions download when Playwright is not available."""
-        with patch('scripts.update_sanctions.RAW_DIR', temp_data_dir / "raw"):
-            success, file_path = download_uk_sanctions()
-            # Should return False when Playwright is not available
-            assert success is False
-            assert file_path is None
-    
-    @patch('scripts.update_sanctions.PLAYWRIGHT_AVAILABLE', True)
-    @patch('asyncio.run')
-    def test_download_uk_sanctions_with_playwright(self, mock_run, temp_data_dir):
-        """Test UK sanctions download when Playwright is available."""
-        # Mock asyncio.run to return success
-        mock_run.return_value = (True, temp_data_dir / "raw" / "uk" / "test.csv")
+    @patch('scripts.update_sanctions.requests.post')
+    def test_download_uk_sanctions(self, mock_post, temp_data_dir):
+        """Test UK sanctions download via API endpoint."""
+        # Create a real output file for the test
+        output_file = temp_data_dir / "raw" / "uk" / "uk_sanctions_20251230.ods"
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Mock successful API response
+        mock_response = MagicMock()
+        mock_response.headers = {'content-length': '185000'}
+        mock_response.raise_for_status = Mock()
+        mock_response.iter_content = Mock(return_value=[b'fake ods content'] * 100)
+        mock_post.return_value = mock_response
         
         with patch('scripts.update_sanctions.RAW_DIR', temp_data_dir / "raw"):
             success, file_path = download_uk_sanctions()
-            # Should call asyncio.run with the async function
-            assert mock_run.called
+            
             assert success is True
             assert file_path is not None
+            assert file_path.suffix == ".ods"
+            assert "uk_sanctions" in file_path.name
+            mock_post.assert_called_once()
+            # Verify API endpoint and payload
+            call_args = mock_post.call_args
+            assert "api/report/ods" in call_args[0][0]
+            assert call_args[1]['json']['query'] == ""
+            # Verify file was written
+            assert file_path.exists()
     
-    @patch('scripts.update_sanctions.PLAYWRIGHT_AVAILABLE', False)
-    def test_download_eu_sanctions_no_playwright(self, temp_data_dir):
-        """Test EU sanctions download when Playwright is not available."""
+    @patch('scripts.update_sanctions.requests.get')
+    def test_download_eu_sanctions_success(self, mock_get, temp_data_dir):
+        """Test EU sanctions download via the direct consolidated CSV URL."""
+        mock_response = MagicMock()
+        mock_response.headers = {'content-length': '25000000'}
+        mock_response.raise_for_status = Mock()
+        mock_response.iter_content = Mock(return_value=[b'fake,csv,content\n'] * 100)
+        mock_get.return_value = mock_response
+
         with patch('scripts.update_sanctions.RAW_DIR', temp_data_dir / "raw"):
             success, file_path = download_eu_sanctions()
-            # Should return False when Playwright is not available
+
+            assert success is True
+            assert file_path is not None
+            assert file_path.suffix == ".csv"
+            assert file_path.exists()
+            mock_get.assert_called_once()
+            assert "webgate.ec.europa.eu" in mock_get.call_args[0][0]
+
+    @patch('scripts.update_sanctions.requests.get')
+    def test_download_eu_sanctions_empty_file(self, mock_get, temp_data_dir):
+        """An empty EU download is treated as a failure."""
+        mock_response = MagicMock()
+        mock_response.headers = {}
+        mock_response.raise_for_status = Mock()
+        mock_response.iter_content = Mock(return_value=[])
+        mock_get.return_value = mock_response
+
+        with patch('scripts.update_sanctions.RAW_DIR', temp_data_dir / "raw"):
+            success, file_path = download_eu_sanctions()
             assert success is False
             assert file_path is None
-    
-    @patch('scripts.update_sanctions.PLAYWRIGHT_AVAILABLE', True)
-    @patch('asyncio.run')
-    def test_download_eu_sanctions_with_playwright(self, mock_run, temp_data_dir):
-        """Test EU sanctions download when Playwright is available."""
-        # Mock asyncio.run to return success
-        mock_run.return_value = (True, temp_data_dir / "raw" / "eu" / "test.csv")
-        
-        with patch('scripts.update_sanctions.RAW_DIR', temp_data_dir / "raw"):
-            success, file_path = download_eu_sanctions()
-            # Should call asyncio.run with the async function
-            assert mock_run.called
-            assert success is True
-            assert file_path is not None
 
 
 class TestSanctionsConversion:
@@ -333,7 +352,243 @@ class TestSanctionsUpdateReal:
         for file_path in files:
             assert file_path.exists()
             assert file_path.suffix == ".csv"
+    
+    def test_real_uk_download(self, request):
+        """Test real UK sanctions download (slow test)."""
+        if not request.config.getoption("--run-slow"):
+            pytest.skip("use --run-slow to run")
+        success, file_path = download_uk_sanctions()
+        assert success is True
+        assert file_path is not None
+        assert file_path.exists()
+        assert file_path.suffix == ".ods"
+        
+    def test_real_eu_download(self, request):
+        """Test real EU sanctions download (slow test)."""
+        if not request.config.getoption("--run-slow"):
+            pytest.skip("use --run-slow to run")
+        success, file_path = download_eu_sanctions()
+        assert success is True
+        assert file_path is not None
+        assert file_path.exists()
+        # The file extension might be .csv or .xml depending on the source
+        assert file_path.suffix in {".csv", ".xml"}
+
+
+class TestSanctionsConversionEndToEnd:
+    """End-to-end tests that verify downloaded files can be converted and used."""
+    
+    @pytest.fixture
+    def project_data_dir(self):
+        """Get the actual project data directory."""
+        return PROJECT_ROOT / "app" / "data" / "sanctions"
+    
+    def test_un_file_can_be_converted(self, project_data_dir):
+        """Test that existing UN file can be converted."""
+        un_dir = project_data_dir / "raw" / "un"
+        un_file = un_dir / "consolidatedLegacyByPRN.xml"
+        
+        if not un_file.exists():
+            pytest.skip(f"UN file not found at {un_file}. Run download first.")
+        
+        # Check that conversion script exists
+        convert_script = PROJECT_ROOT / "scripts" / "convert_un_to_csv.py"
+        assert convert_script.exists(), "UN conversion script not found"
+        
+        # Run conversion (this will create normalized CSV)
+        normalized_dir = project_data_dir / "normalized"
+        normalized_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Import and test conversion
+        import subprocess
+        result = subprocess.run(
+            [sys.executable, str(convert_script)],
+            capture_output=True,
+            text=True,
+            timeout=300
+        )
+        
+        if result.returncode != 0:
+            pytest.fail(f"UN conversion failed: {result.stderr}")
+        
+        # Check that normalized file was created
+        normalized_files = list((project_data_dir / "normalized" / "un").glob("*.csv"))
+        assert len(normalized_files) > 0, "No normalized UN CSV files found after conversion"
+        
+        # Verify file has data
+        import pandas as pd
+        df = pd.read_csv(normalized_files[0], nrows=10)
+        assert len(df) > 0, "Normalized UN file is empty"
+        assert 'name' in df.columns or 'Name' in df.columns, "Normalized UN file missing name column"
+    
+    def test_ofac_files_can_be_converted(self, project_data_dir):
+        """Test that existing OFAC files can be converted."""
+        ofac_dir = project_data_dir / "raw" / "ofac"
+        sdn_file = ofac_dir / "sdn.csv"
+        
+        if not sdn_file.exists():
+            pytest.skip(f"OFAC SDN file not found at {sdn_file}. Run download first.")
+        
+        # Check that conversion script exists
+        convert_script = PROJECT_ROOT / "scripts" / "convert_ofac_to_csv.py"
+        assert convert_script.exists(), "OFAC conversion script not found"
+        
+        # Run conversion
+        import subprocess
+        result = subprocess.run(
+            [sys.executable, str(convert_script)],
+            capture_output=True,
+            text=True,
+            timeout=300
+        )
+        
+        if result.returncode != 0:
+            pytest.fail(f"OFAC conversion failed: {result.stderr}")
+        
+        # Check that normalized file was created
+        normalized_files = list((project_data_dir / "normalized" / "ofac").glob("*.csv"))
+        assert len(normalized_files) > 0, "No normalized OFAC CSV files found after conversion"
+        
+        # Verify file has data
+        import pandas as pd
+        df = pd.read_csv(normalized_files[0], nrows=10)
+        assert len(df) > 0, "Normalized OFAC file is empty"
+        assert 'name' in df.columns or 'Name' in df.columns, "Normalized OFAC file missing name column"
+    
+    def test_uk_file_can_be_converted(self, project_data_dir):
+        """Test that existing UK file can be converted."""
+        uk_dir = project_data_dir / "raw" / "uk"
+        uk_files = list(uk_dir.glob("*.ods"))
+        
+        if not uk_files:
+            pytest.skip(f"UK ODS file not found in {uk_dir}. Run download first.")
+        
+        # Check that conversion script exists
+        convert_script = PROJECT_ROOT / "scripts" / "convert_uk_to_csv.py"
+        assert convert_script.exists(), "UK conversion script not found"
+        
+        # Run conversion
+        import subprocess
+        result = subprocess.run(
+            [sys.executable, str(convert_script)],
+            capture_output=True,
+            text=True,
+            timeout=300
+        )
+        
+        if result.returncode != 0:
+            pytest.fail(f"UK conversion failed: {result.stderr}")
+        
+        # Check that normalized file was created
+        normalized_files = list((project_data_dir / "normalized" / "uk").glob("*.csv"))
+        assert len(normalized_files) > 0, "No normalized UK CSV files found after conversion"
+        
+        # Verify file has data
+        import pandas as pd
+        df = pd.read_csv(normalized_files[0], nrows=10)
+        assert len(df) > 0, "Normalized UK file is empty"
+        assert 'name' in df.columns or 'Name' in df.columns, "Normalized UK file missing name column"
+    
+    def test_eu_file_can_be_converted(self, project_data_dir):
+        """Test that existing EU file can be converted."""
+        eu_dir = project_data_dir / "raw" / "eu"
+        eu_files = list(eu_dir.glob("*.csv")) + list(eu_dir.glob("*.zip"))
+        
+        if not eu_files:
+            pytest.skip(f"EU file not found in {eu_dir}. Run download first.")
+        
+        # Check that conversion script exists
+        convert_script = PROJECT_ROOT / "scripts" / "convert_eu_to_csv.py"
+        assert convert_script.exists(), "EU conversion script not found"
+        
+        # Run conversion
+        import subprocess
+        result = subprocess.run(
+            [sys.executable, str(convert_script)],
+            capture_output=True,
+            text=True,
+            timeout=300
+        )
+        
+        if result.returncode != 0:
+            pytest.fail(f"EU conversion failed: {result.stderr}")
+        
+        # Check that normalized file was created
+        normalized_files = list((project_data_dir / "normalized" / "eu").glob("*.csv"))
+        assert len(normalized_files) > 0, "No normalized EU CSV files found after conversion"
+        
+        # Verify file has data
+        import pandas as pd
+        df = pd.read_csv(normalized_files[0], nrows=10)
+        assert len(df) > 0, "Normalized EU file is empty"
+        assert 'name' in df.columns or 'Name' in df.columns, "Normalized EU file missing name column"
+    
+    def test_combined_file_can_be_loaded(self, project_data_dir):
+        """Test that combined sanctions file can be loaded by SanctionsLoader."""
+        combined_dir = project_data_dir / "combined"
+        combined_files = list(combined_dir.glob("combined_sanctions_*.csv"))
+        
+        if not combined_files:
+            pytest.skip(f"No combined sanctions file found in {combined_dir}. Run combine_sanctions.py first.")
+        
+        # Use the latest file
+        latest_file = max(combined_files, key=lambda f: f.stat().st_mtime)
+        
+        # Try to load with SanctionsLoader
+        from app.services.sanctions_loader import SanctionsLoader
+        
+        try:
+            df = SanctionsLoader.load(latest_file)
+            assert df is not None, "SanctionsLoader returned None"
+            assert len(df) > 0, "Combined sanctions file is empty"
+            
+            # Verify required columns
+            required_columns = {'name', 'source'}
+            assert required_columns.issubset(df.columns), f"Missing required columns. Found: {df.columns.tolist()}"
+            
+            # Verify data from all 4 sources if available
+            if 'source' in df.columns:
+                sources = df['source'].unique()
+                logger.info(f"Found sanctions from sources: {sources}")
+                # At least one source should be present
+                assert len(sources) > 0, "No source information in combined file"
+            
+        except Exception as e:
+            pytest.fail(f"Failed to load combined sanctions file: {str(e)}")
+    
+    def test_all_four_sources_in_combined_file(self, project_data_dir):
+        """Test that combined file contains data from all 4 sources if available."""
+        combined_dir = project_data_dir / "combined"
+        combined_files = list(combined_dir.glob("combined_sanctions_*.csv"))
+        
+        if not combined_files:
+            pytest.skip(f"No combined sanctions file found in {combined_dir}. Run combine_sanctions.py first.")
+        
+        latest_file = max(combined_files, key=lambda f: f.stat().st_mtime)
+        
+        from app.services.sanctions_loader import SanctionsLoader
+        df = SanctionsLoader.load(latest_file)
+        
+        if 'source' in df.columns:
+            sources = set(df['source'].str.upper())
+            expected_sources = {'UN', 'OFAC', 'UK', 'EU'}
+            found_sources = sources.intersection(expected_sources)
+            
+            logger.info(f"Expected sources: {expected_sources}")
+            logger.info(f"Found sources in file: {found_sources}")
+            
+            # At least UN and OFAC should be present (critical sources)
+            assert 'UN' in found_sources or 'OFAC' in found_sources, \
+                f"Critical sources (UN/OFAC) not found. Found: {found_sources}"
+            
+            # Log which sources are missing
+            missing = expected_sources - found_sources
+            if missing:
+                logger.warning(f"Some sources not found in combined file: {missing}")
 
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+

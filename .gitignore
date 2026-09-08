@@ -1,4 +1,5 @@
 NEXT_STEPS.md
+scratch/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -159,8 +160,12 @@ logs/
 *.log
 
 # Data files (keep structure, ignore actual data)
+app/data/sanctions/raw/**
+app/data/sanctions/normalized/**
+app/data/sanctions/combined/**
 app/data/sanctions/**/*.csv
 app/data/sanctions/**/*.xml
+app/data/sanctions/**/*.ods
 app/data/sample_docs/*
 !app/data/sanctions/.gitkeep
 !app/data/sanctions/raw/.gitkeep

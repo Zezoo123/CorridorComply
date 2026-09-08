@@ -114,17 +114,21 @@ for alt_name, std_name in ALTERNATIVE_NAMES.items():
     if std_name.upper() in COUNTRY_NAMES:
         COUNTRY_NAMES[alt_name.upper()] = COUNTRY_NAMES[std_name.upper()]
 
+SOURCE_FILE_NAME = 'uk_sanctions.ods'
+
 def load_uk_data():
+    global SOURCE_FILE_NAME
     """Load UK sanctions data from ODS file."""
     script_dir = Path(__file__).parent
     project_root = script_dir.parent
     raw_dir = project_root / 'app' / 'data' / 'sanctions' / 'raw' / 'uk'
     
-    uk_file = raw_dir / 'FCDO_SL_Wed_Nov 19 2025.ods'
-    
-    if not uk_file.exists():
-        logger.error(f"UK file not found: {uk_file}")
+    ods_files = sorted(raw_dir.glob('*.ods'), key=lambda f: f.stat().st_mtime, reverse=True)
+    if not ods_files:
+        logger.error(f"No UK .ods file found in {raw_dir}")
         return pd.DataFrame()
+    uk_file = ods_files[0]
+    SOURCE_FILE_NAME = uk_file.name
     
     try:
         logger.info(f"Loading UK data from {uk_file}")
@@ -284,7 +288,7 @@ def create_normalized_uk_data(uk_df: pd.DataFrame) -> pd.DataFrame:
             # Basic record info
             record = {
                 'source': 'UK',
-                'source_file': 'FCDO_SL_Wed_Nov_19_2025.ods',
+                'source_file': SOURCE_FILE_NAME,
                 'list_type': 'UK Sanctions List',
                 'dataid': str(row.get('Unique ID', '')).strip(),
                 'reference_number': str(row.get('OFSI Group ID', '')).strip() or str(row.get('Unique ID', '')).strip(),
@@ -464,7 +468,7 @@ def main():
         logger.info("\n" + "="*60)
         logger.info("Conversion complete!")
         logger.info("="*60)
-        logger.info(f"Input file: FCDO_SL_Wed_Nov_19_2025.ods")
+        logger.info(f"Input file: {SOURCE_FILE_NAME}")
         logger.info(f"Output: {len(normalized_df)} normalized records")
         logger.info(f"Output file: {output_path}")
         logger.info(f"Processing time: {duration:.2f} seconds")

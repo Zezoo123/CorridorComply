@@ -151,7 +151,22 @@ class SanctionsCombiner:
             latest_file.unlink()
         latest_file.symlink_to(output_file.name)
         
+        self.prune_old_files(keep=3)
         return str(output_file)
+
+    def prune_old_files(self, keep: int = 3) -> None:
+        """Delete all but the newest `keep` combined files (the symlink is never touched)."""
+        files = sorted(
+            (f for f in self.output_dir.glob("combined_sanctions_*.csv") if not f.is_symlink()),
+            key=lambda f: f.stat().st_mtime,
+            reverse=True,
+        )
+        for old in files[keep:]:
+            try:
+                old.unlink()
+                logger.info(f"Pruned old combined file: {old.name}")
+            except OSError as e:
+                logger.warning(f"Could not prune {old.name}: {e}")
 
 def main() -> int:
     """Main function to run the sanctions list combination."""

@@ -213,16 +213,30 @@ pytest tests/test_sanctions_loader.py -v
 ## Installation (Local)
 
 ```bash
-git clone https://github.com/yourname/corridorcomply
-cd corridorcomply
-pip install -r requirements.txt
+git clone https://github.com/Zezoo123/CorridorComply
+cd CorridorComply
+python -m venv .venv && source .venv/bin/activate
 
-# For development with additional tools
-pip install -r requirements-dev.txt  # If you have a dev requirements file
+pip install -r requirements.txt        # API + sanctions screening
+pip install -r requirements-ml.txt     # optional: document OCR + face matching (large)
+pip install -r requirements-dev.txt    # tests
 
-# Install in development mode
-pip install -e .
-uvicorn main:app --reload
+python scripts/update_sanctions.py     # download and combine UN, OFAC, UK, EU lists
+uvicorn app.main:app --reload          # http://127.0.0.1:8000/docs
+```
+
+Run the tests (ML-dependent tests are skipped unless you pass `--run-slow`):
+
+```bash
+pytest
+pytest --run-slow
+```
+
+Docker (screening-only by default; add `--build-arg WITH_ML=1` for OCR and face matching):
+
+```bash
+docker build -t corridorcomply .
+docker run -p 8000:8000 -v $(pwd)/app/data/sanctions:/data/sanctions corridorcomply
 ```
 
 ## Contributing
@@ -238,4 +252,4 @@ Premium corridor packs, dashboard, and advanced AML features are closed source a
 
 ## License
 
-MIT
+MIT for everything outside `premium/`. The `premium/` directory is proprietary; see `premium/LICENSE`.

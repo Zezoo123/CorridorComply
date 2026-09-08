@@ -101,7 +101,7 @@ def load_eu_data() -> pd.DataFrame:
     raw_dir = project_root / 'app' / 'data' / 'sanctions' / 'raw' / 'eu'
     
     # Find the latest EU sanctions file (in case the name changes)
-    eu_files = list(raw_dir.glob('*FULL*.csv'))
+    eu_files = list(raw_dir.glob('*.csv'))
     if not eu_files:
         logger.error(f"No EU sanctions files found in {raw_dir}")
         return pd.DataFrame()

@@ -22,7 +22,7 @@ async def screen_aml(
     This endpoint checks if the provided individual matches any entries in
     sanctions lists, PEP databases, or other watchlists.
     """
-    request_id = request.headers.get('X-Request-ID', f"req_{str(uuid.uuid4())[:8]}")
+    request_id = getattr(request.state, "request_id", None) or request.headers.get("X-Request-ID") or f"req_{uuid.uuid4().hex[:8]}"
     
     try:
         # Log the start of AML screening

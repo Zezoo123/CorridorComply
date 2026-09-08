@@ -5,13 +5,12 @@ Auto-update script for sanctions lists.
 This script automatically downloads fresh sanctions lists from:
 - UN: https://scsanctions.un.org/resources/xml/en/consolidated.xml
 - OFAC: https://www.treasury.gov/ofac/downloads/sdn.csv (and alt.csv, add.csv)
-- UK: https://search-uk-sanctions-list.service.gov.uk/ (automated via Playwright)
-- EU: https://data.europa.eu/data/datasets/... (automated via Playwright)
+- UK: https://search-uk-sanctions-list.service.gov.uk/api/report/ods (API endpoint)
+- EU: https://webgate.ec.europa.eu/fsd/fsf/public/files/csvFullSanctionsList_1_1/content (direct CSV)
 
 Then converts and combines them into a single unified list.
 
 Can be run manually, scheduled via cron, or called from API startup.
-Requires Playwright for UK/EU downloads: pip install playwright && playwright install chromium
 """
 
 import requests
@@ -22,12 +21,6 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional, Tuple
 import subprocess
-import asyncio
-try:
-    from playwright.async_api import async_playwright
-    PLAYWRIGHT_AVAILABLE = True
-except ImportError:
-    PLAYWRIGHT_AVAILABLE = False
 
 # Configure logging
 logging.basicConfig(
@@ -54,9 +47,12 @@ OFAC_SDN_URL = "https://www.treasury.gov/ofac/downloads/sdn.csv"
 OFAC_ALT_URL = "https://www.treasury.gov/ofac/downloads/alt.csv"
 OFAC_ADD_URL = "https://www.treasury.gov/ofac/downloads/add.csv"
 
-# UK and EU require more complex handling
+# UK and EU sanctions URLs
 UK_SANCTIONS_URL = "https://search-uk-sanctions-list.service.gov.uk/"
-EU_SANCTIONS_URL = "https://data.europa.eu/data/datasets/consolidated-list-of-persons-groups-and-entities-subject-to-eu-financial-sanctions?locale=en"
+# EU Financial Sanctions List - Consolidated XML format
+EU_SANCTIONS_URL = "https://webgate.ec.europa.eu/fsd/fsf/public/files/csvFullSanctionsList_1_1/content?token=dG9rZW4tMjAxNw"
+# Alternative CSV format (if needed)
+# EU_SANCTIONS_CSV_URL = "https://webgate.ec.europa.eu/fsd/fsf/public/files/csvFullSanctionsList_1_1/content?token=dG9rZW4tMjAxNw=="
 
 # User agent for downloads
 USER_AGENT = "Mozilla/5.0 (compatible; CorridorComply/1.0; +https://github.com/Zezoo123/CorridorComply)"
@@ -146,172 +142,98 @@ def download_ofac_sanctions() -> Tuple[bool, list[Path]]:
     return False, []
 
 
-async def download_uk_sanctions_async() -> Tuple[bool, Optional[Path]]:
-    """Download UK sanctions file using Playwright."""
-    if not PLAYWRIGHT_AVAILABLE:
-        logger.error("Playwright not available. Install with: pip install playwright && playwright install chromium")
-        return False, None
-    
+def download_uk_sanctions() -> Tuple[bool, Optional[Path]]:
+    """Download UK sanctions file using the API endpoint."""
     output_dir = RAW_DIR / "uk"
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    try:
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            context = await browser.new_context(accept_downloads=True)
-            page = await context.new_page()
-            
-            logger.info(f"Navigating to {UK_SANCTIONS_URL}...")
-            await page.goto(UK_SANCTIONS_URL, wait_until="networkidle", timeout=30000)
-            
-            logger.info("Waiting for download link...")
-            await page.wait_for_selector("a.app-download-link", timeout=30000)
-            
-            timestamp = datetime.now().strftime("%Y%m%d")
-            output_path = output_dir / f"uk_sanctions_{timestamp}.csv"
-            
-            async with page.expect_download(timeout=60000) as download_info:
-                await page.click("a.app-download-link")
-            
-            download = await download_info.value
-            await download.save_as(output_path)
-            
-            await browser.close()
-            
-            if output_path.exists():
-                file_size = output_path.stat().st_size
-                logger.info(f"✅ Downloaded UK sanctions: {file_size / 1024 / 1024:.2f} MB to {output_path.name}")
-                return True, output_path
-            else:
-                logger.error("Download completed but file not found")
-                return False, None
-                
-    except Exception as e:
-        logger.error(f"Failed to download UK sanctions: {str(e)}", exc_info=True)
-        return False, None
-
-
-def download_uk_sanctions() -> Tuple[bool, Optional[Path]]:
-    """Download UK sanctions file (synchronous wrapper)."""
-    try:
-        return asyncio.run(download_uk_sanctions_async())
-    except Exception as e:
-        logger.error(f"Error in UK download: {str(e)}")
-        return False, None
-
-
-async def download_eu_sanctions_async() -> Tuple[bool, Optional[Path]]:
-    """Download EU sanctions file using Playwright."""
-    if not PLAYWRIGHT_AVAILABLE:
-        logger.error("Playwright not available. Install with: pip install playwright && playwright install chromium")
-        return False, None
-    
-    output_dir = RAW_DIR / "eu"
-    output_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d")
+    output_path = output_dir / f"uk_sanctions_{timestamp}.ods"
     
     try:
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            context = await browser.new_context(accept_downloads=True)
-            page = await context.new_page()
-            
-            logger.info(f"Navigating to {EU_SANCTIONS_URL}...")
-            await page.goto(EU_SANCTIONS_URL, wait_until="networkidle", timeout=30000)
-            
-            # Wait a bit for page to fully load
-            await page.wait_for_timeout(2000)
-            
-            # Look for download button/link - common patterns for EU data portal
-            # Try multiple selectors that might be used
-            download_selectors = [
-                "a[href*='download']",
-                "a[href*='.csv']",
-                "a[href*='.zip']",
-                "button[aria-label*='download' i]",
-                "button:has-text('Download')",
-                ".download-button",
-                "a:has-text('Download')",
-                "a:has-text('CSV')",
-                "a:has-text('Download dataset')",
-                "[data-testid*='download']"
-            ]
-            
-            download_clicked = False
-            output_path = None
-            timestamp = datetime.now().strftime("%Y%m%d")
-            
-            for selector in download_selectors:
-                try:
-                    logger.info(f"Trying selector: {selector}")
-                    element = await page.wait_for_selector(selector, timeout=10000, state="visible")
-                    if element:
-                        # Check if it's a CSV or ZIP file
-                        href = await element.get_attribute("href")
-                        if href and (".csv" in href.lower() or ".zip" in href.lower()):
-                            output_path = output_dir / f"eu_sanctions_FULL_{timestamp}.csv"
-                            if ".zip" in href.lower():
-                                output_path = output_dir / f"eu_sanctions_FULL_{timestamp}.zip"
-                            
-                            async with page.expect_download(timeout=60000) as download_info:
-                                await element.click()
-                            
-                            download = await download_info.value
-                            await download.save_as(output_path)
-                            download_clicked = True
-                            logger.info(f"Downloaded via selector: {selector}")
-                            break
-                except Exception as e:
-                    logger.debug(f"Selector {selector} failed: {str(e)}")
-                    continue
-            
-            # If no download button found, try to find direct links on the page
-            if not download_clicked:
-                logger.info("No download button found, searching for direct CSV/ZIP links...")
-                links = await page.query_selector_all("a[href]")
-                for link in links:
-                    href = await link.get_attribute("href")
-                    if href and (".csv" in href.lower() or (".zip" in href.lower() and "sanction" in href.lower())):
-                        full_url = href if href.startswith("http") else f"{EU_SANCTIONS_URL.rstrip('/')}/{href.lstrip('/')}"
-                        logger.info(f"Found direct link: {full_url}")
-                        # Use requests to download directly
-                        try:
-                            response = requests.get(full_url, timeout=300, stream=True)
-                            response.raise_for_status()
-                            output_path = output_dir / f"eu_sanctions_FULL_{timestamp}.csv"
-                            if ".zip" in href.lower():
-                                output_path = output_dir / f"eu_sanctions_FULL_{timestamp}.zip"
-                            
-                            with open(output_path, 'wb') as f:
-                                for chunk in response.iter_content(chunk_size=8192):
-                                    f.write(chunk)
-                            download_clicked = True
-                            logger.info(f"Downloaded via direct link")
-                            break
-                        except Exception as e:
-                            logger.debug(f"Direct link download failed: {str(e)}")
-                            continue
-            
-            await browser.close()
-            
-            if download_clicked and output_path and output_path.exists():
-                file_size = output_path.stat().st_size
-                logger.info(f"✅ Downloaded EU sanctions: {file_size / 1024 / 1024:.2f} MB to {output_path.name}")
-                return True, output_path
-            else:
-                logger.warning("Could not download EU sanctions automatically. You may need to update the selectors.")
-                return False, None
-                
+        logger.info("Downloading UK sanctions via API...")
+        api_url = "https://search-uk-sanctions-list.service.gov.uk/api/report/ods"
+        headers = {'Content-Type': 'application/json'}
+        payload = {
+            "query": "",
+            "filters": {},
+            "sort": {
+                "field": "name",
+                "direction": "asc"
+            }
+        }
+        
+        response = requests.post(api_url, json=payload, headers=headers, timeout=300, stream=True)
+        response.raise_for_status()
+        
+        total_size = int(response.headers.get('content-length', 0))
+        downloaded = 0
+        
+        with open(output_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    if total_size > 0 and downloaded % (5 * 1024 * 1024) == 0:
+                        percent = (downloaded / total_size) * 100
+                        logger.info(f"  Downloaded {downloaded / 1024 / 1024:.1f} MB ({percent:.1f}%)")
+        
+        file_size = output_path.stat().st_size
+        logger.info(f"✅ Downloaded UK sanctions: {file_size / 1024 / 1024:.2f} MB to {output_path.name}")
+        return True, output_path
+        
+    except requests.exceptions.RequestException as e:
+        error_msg = f"Failed to download UK sanctions: {str(e)}"
+        logger.error(error_msg)
+        return False, None
     except Exception as e:
-        logger.error(f"Failed to download EU sanctions: {str(e)}", exc_info=True)
+        error_msg = f"Unexpected error downloading UK sanctions: {str(e)}"
+        logger.error(error_msg, exc_info=True)
         return False, None
 
 
 def download_eu_sanctions() -> Tuple[bool, Optional[Path]]:
-    """Download EU sanctions file (synchronous wrapper)."""
+    """Download EU sanctions file directly from the EU Financial Sanctions API."""
+    output_dir = RAW_DIR / "eu"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d")
+    output_path = output_dir / f"eu_sanctions_FULL_{timestamp}.csv"
+    
     try:
-        return asyncio.run(download_eu_sanctions_async())
+        logger.info(f"Downloading EU sanctions from {EU_SANCTIONS_URL}...")
+        headers = {
+            'User-Agent': USER_AGENT,
+            'Accept': 'text/csv'
+        }
+        
+        response = requests.get(EU_SANCTIONS_URL, headers=headers, stream=True, timeout=300)
+        response.raise_for_status()
+        
+        # Create the output directory if it doesn't exist
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Save the file
+        with open(output_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+        
+        # Verify the file was downloaded
+        if not output_path.exists():
+            logger.error("EU sanctions file was not downloaded successfully")
+            return False, None
+        
+        file_size = output_path.stat().st_size
+        if file_size == 0:
+            logger.error("Downloaded EU sanctions file is empty")
+            output_path.unlink(missing_ok=True)
+            return False, None
+        
+        logger.info(f"✅ Successfully downloaded EU sanctions ({file_size / 1024 / 1024:.2f} MB)")
+        return True, output_path
+        
     except Exception as e:
-        logger.error(f"Error in EU download: {str(e)}")
+        logger.error(f"Error downloading EU sanctions: {str(e)}", exc_info=True)
         return False, None
 
 

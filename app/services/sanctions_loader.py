@@ -5,11 +5,6 @@ import logging
 import re
 from datetime import datetime
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
 logger = logging.getLogger(__name__)
 
 class SanctionsLoader:
@@ -24,6 +19,12 @@ class SanctionsLoader:
         "last_name", "un_list_type", "list_type", "program", "gender",
         "id_numbers", "reference_number", "source_file"
     ]
+
+    @classmethod
+    def combined_dir(cls) -> Path:
+        """Directory holding combined_sanctions_*.csv (override with SANCTIONS_DATA_DIR)."""
+        from ..config import SANCTIONS_DATA_DIR
+        return Path(SANCTIONS_DATA_DIR) / "combined"
 
     @classmethod
     def _find_latest_sanctions_file(cls, directory: Path) -> Path:
@@ -94,12 +95,13 @@ class SanctionsLoader:
             ValueError: If the file is missing required columns.
         """
         # If we have a cached version and no specific path is requested, return it
-        if cls._cache is not None and path is None:
+        use_cache = path is None
+        if cls._cache is not None and use_cache:
             return cls._cache
         
         # Resolve the path to the sanctions file
         if path is None:
-            sanctions_dir = Path(__file__).parent.parent / "data" / "sanctions" / "combined"
+            sanctions_dir = cls.combined_dir()
             sanctions_dir.mkdir(parents=True, exist_ok=True)  # Ensure directory exists
             path = cls._find_latest_sanctions_file(sanctions_dir)
         else:
@@ -122,7 +124,7 @@ class SanctionsLoader:
             df = cls._normalize_dataframe(df)
             
             # Cache the result if no specific path was provided
-            if path is None:
+            if use_cache:
                 cls._cache = df
             return df
             
@@ -149,7 +151,7 @@ class SanctionsLoader:
             Returns (True, age_days) if update is needed, (False, age_days) if not
         """
         try:
-            sanctions_dir = Path(__file__).parent.parent / "data" / "sanctions" / "combined"
+            sanctions_dir = cls.combined_dir()
             sanctions_dir.mkdir(parents=True, exist_ok=True)
             
             # Find latest combined file
