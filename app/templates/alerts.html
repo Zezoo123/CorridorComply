@@ -1,0 +1,29 @@
+{% extends "_base.html" %}
+{% block title %}Alerts · CorridorComply{% endblock %}
+{% block content %}
+<h1>Alerts</h1>
+<p class="meta">{{ monitored_count }} customers monitored · current list <code>{{ list_version or "none loaded" }}</code></p>
+<div class="row" style="margin:0 0 16px">
+  <form method="post" action="/alerts/rescreen"><button type="submit">Re-screen all monitored customers now</button></form>
+  {% if show == 'open' %}<a class="btn secondary" href="/alerts?show=all">Show acknowledged too</a>{% else %}<a class="btn secondary" href="/alerts">Open only</a>{% endif %}
+</div>
+{% if not alerts %}
+<div class="card"><strong>No {% if show == 'open' %}open {% endif %}alerts.</strong> <span class="muted">Alerts are raised when a monitored customer newly matches a list entry, matches an additional entry, or stops matching. Run the list update and re-screen (or wait for the scheduled job).</span></div>
+{% else %}
+<div class="tablewrap"><table>
+<thead><tr><th>#</th><th>Raised</th><th>Customer</th><th>Change</th><th>Details</th><th>Status</th><th></th></tr></thead>
+<tbody>
+{% for a in alerts %}
+<tr>
+  <td class="num">{{ a.id }}</td>
+  <td class="num">{{ a.created_at[:16].replace('T',' ') }}</td>
+  <td><strong>{{ a.customer.full_name }}</strong><div class="muted">{{ a.customer.reference }}{% if a.customer.dob %} · {{ a.customer.dob }}{% endif %}{% if a.customer.nationality %} · {{ a.customer.nationality }}{% endif %}</div></td>
+  <td><span class="pill {% if a.kind == 'hit_cleared' %}low{% else %}high{% endif %}">{{ a.kind.replace('_',' ') }}</span></td>
+  <td>{{ a.summary }}<div class="muted">screening #{{ a.screening_id }}{% if a.previous_screening_id %} vs #{{ a.previous_screening_id }}{% endif %}</div></td>
+  <td>{% if a.status == 'open' %}<span class="pill medium">open</span>{% else %}<span class="pill low">acknowledged</span><div class="muted">{{ a.acknowledged_at[:16].replace('T',' ') if a.acknowledged_at else '' }}{% if a.note %} · {{ a.note }}{% endif %}</div>{% endif %}</td>
+  <td>{% if a.status == 'open' %}<form method="post" action="/alerts/{{ a.id }}/ack" class="row"><input type="text" name="note" placeholder="reason" style="max-width:160px"><button type="submit" class="btn secondary">Acknowledge</button></form>{% endif %}</td>
+</tr>
+{% endfor %}
+</tbody></table></div>
+{% endif %}
+{% endblock %}

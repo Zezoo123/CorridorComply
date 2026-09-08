@@ -16,6 +16,7 @@
   {% endfor %}
   <label for="default_type">Default type when no type column</label>
   <select id="default_type" name="default_type"><option value="person">Person</option><option value="entity">Company / organisation</option><option value="any">Everything</option></select>
+  {% if monitor %}<input type="hidden" name="monitor" value="1">{% endif %}
   <div style="margin-top:16px"><button type="submit">Screen file</button></div>
 </form>
 </div>
