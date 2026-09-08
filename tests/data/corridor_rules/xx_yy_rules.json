@@ -1,0 +1,18 @@
+{
+  "id": "XX-YY", "version": "test", "status": "draft", "title": "Test corridor",
+  "sending": {"country": "XX", "documents": [], "required_fields": {"person": ["full_name", "dob"]}},
+  "receiving": {"country": "YY", "documents": [], "required_fields": {"beneficiary": ["full_name", "country"]}},
+  "screening": {"threshold": 85, "screen_name_variants": true},
+  "rules": [
+    {"id": "true-match", "title": "True match",
+     "when": {"all": [{"field": "screening.best_confidence", "op": "eq", "value": "high"},
+                       {"field": "screening.best_dob_agreement", "op": "in", "value": ["exact", "year"]}]},
+     "outcome": "reject", "risk_add": 30, "reason": "true match", "actions": ["freeze_and_report"]},
+    {"id": "any-hit", "title": "Any hit", "when": {"all": [{"field": "screening.match", "op": "is_true"}]},
+     "outcome": "review", "risk_add": 5, "reason": "needs a look"},
+    {"id": "missing", "title": "Missing fields", "when": {"all": [{"field": "customer.missing_fields", "op": "ne", "value": []}]},
+     "outcome": "review", "risk_add": 5, "reason": "incomplete"},
+    {"id": "big-transfer", "title": "Large amount", "when": {"all": [{"field": "transfer.amount", "op": "gte", "value": 50000}]},
+     "outcome": "review", "risk_add": 10, "reason": "amount above threshold"}
+  ]
+}

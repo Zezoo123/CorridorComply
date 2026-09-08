@@ -150,7 +150,7 @@ cython_debug/
 
 # Project-specific
 # Local database and runtime data
-data/
+/data/
 # Database files
 *.db
 *.sqlite
