@@ -9,7 +9,7 @@ class AMLService:
     @staticmethod
     def screen_sync(full_name: str, dob: Optional[str] = None, nationality: Optional[str] = None,
                     entity_type: str = "person", request_id: str = "", threshold: int = SIMILARITY_THRESHOLD,
-                    use_variants: bool = True) -> Dict[str, Any]:
+                    use_variants: bool = True, id_numbers: Optional[List[str]] = None) -> Dict[str, Any]:
         index = get_index()
         # Population-aware name variants (Filipino middle names, patronymics) so a
         # listed person is not missed because the customer supplied a longer form.
@@ -21,12 +21,13 @@ class AMLService:
             name_flags = info.flags
             variants = info.variants or [full_name]
         best: Dict[str, Any] = {}
-        for v in variants:
-            for c in index.screen(v, dob=dob, nationality=nationality, entity_type=entity_type, threshold=threshold):
+        for n, v in enumerate(variants):
+            for c in index.screen(v, dob=dob, nationality=nationality, entity_type=entity_type, threshold=threshold,
+                                  id_numbers=id_numbers if n == 0 else None):
                 key = f"{c.entry.source}:{c.entry.dataid}"
                 if key not in best or c.similarity > best[key].similarity:
                     best[key] = c
-        candidates = sorted(best.values(), key=lambda c: (-c.similarity, c.dob_agreement != "exact", c.entry.name))[:25]
+        candidates = sorted(best.values(), key=lambda c: (c.match_type != "identifier", -c.similarity, c.dob_agreement != "exact", c.entry.name))[:25]
 
         matches: List[Dict[str, Any]] = []
         for c in candidates:
@@ -47,6 +48,8 @@ class AMLService:
             high = [m for m in matches if m["confidence"] == "high"]
             if high:
                 details.append(f"{len(high)} high confidence match(es)")
+            if any(m["match_type"] == "identifier" for m in matches):
+                details.append("Customer identity number appears on a list")
             if any(m["match_type"] == "alias" for m in matches):
                 details.append("Matched on a listed alias")
             if any(m["dob_agreement"] == "exact" for m in matches):

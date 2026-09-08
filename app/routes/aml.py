@@ -28,12 +28,9 @@ async def screen_aml(request: Request, payload: AMLScreenRequest, session: Sessi
     """
     request_id = _request_id(request)
     try:
-        result = await AMLService.screen(
-            request_id=request_id,
-            full_name=payload.full_name,
-            dob=payload.dob,
-            nationality=payload.nationality,
-            entity_type=payload.entity_type,
+        result = AMLService.screen_sync(
+            payload.full_name, dob=payload.dob, nationality=payload.nationality, entity_type=payload.entity_type,
+            request_id=request_id, id_numbers=payload.id_numbers,
         )
         row = records.save_screening(session, getattr(request.state, "tenant", "dev"), result, request_id=request_id,
                                      channel="api", full_name=payload.full_name, dob=payload.dob,
@@ -93,7 +90,7 @@ async def screen_batch(request: Request, payload: AMLBatchRequest, session: Sess
     list_version = None
     for item in payload.items:
         r = AMLService.screen_sync(item.full_name, dob=item.dob, nationality=item.nationality,
-                                   entity_type=item.entity_type, request_id=request_id)
+                                   entity_type=item.entity_type, request_id=request_id, id_numbers=item.id_numbers)
         list_version = r["list_version"]
         row = records.save_screening(session, getattr(request.state, "tenant", "dev"), r, request_id=request_id,
                                      channel="batch", full_name=item.full_name, dob=item.dob,

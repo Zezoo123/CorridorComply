@@ -256,10 +256,12 @@ class TestSanctionsUpdateIntegration:
     @patch('scripts.update_sanctions.download_ofac_sanctions')
     @patch('scripts.update_sanctions.download_uk_sanctions')
     @patch('scripts.update_sanctions.download_eu_sanctions')
+    @patch('scripts.update_sanctions.download_qa_nctc', return_value=(True, Path('nctc.json')))
     @patch('scripts.update_sanctions.run_conversion_script')
     def test_update_all_four_lists(
         self,
         mock_convert,
+        mock_download_nctc,
         mock_download_eu,
         mock_download_uk,
         mock_download_ofac,
@@ -303,10 +305,12 @@ class TestSanctionsUpdateIntegration:
     @patch('scripts.update_sanctions.download_ofac_sanctions')
     @patch('scripts.update_sanctions.download_uk_sanctions')
     @patch('scripts.update_sanctions.download_eu_sanctions')
+    @patch('scripts.update_sanctions.download_qa_nctc', return_value=(True, Path('nctc.json')))
     @patch('scripts.update_sanctions.run_conversion_script')
     def test_update_with_partial_failures(
         self,
         mock_convert,
+        mock_download_nctc,
         mock_download_eu,
         mock_download_uk,
         mock_download_ofac,
