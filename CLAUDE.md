@@ -76,6 +76,8 @@ SQLAlchemy 2 models in `models.py`; lazy engine in `database.py` (`DATABASE_URL`
 ### Sanctions Data Pipeline
 Raw data in `app/data/sanctions/raw/{un,ofac,uk,eu}/` is converted by `scripts/convert_*.py` to normalized CSVs in `normalized/`, then combined into `combined/combined_sanctions_*.csv` (the combiner keeps the newest three). The loader picks the latest combined file by modification time and caches it in memory. `SANCTIONS_DATA_DIR` overrides the data location; tests use a temp dir via the `sanctions_data_dir` fixture.
 
+Sources: UN, OFAC, UK (OFSI ConList), EU, QA_NCTC (Qatar NCTC unified record from the MOI portal JSON; `scripts/convert_qa_nctc_to_csv.py`). The screening index also matches identity numbers (`identifier_keys`, `match_type: identifier`).
+
 Converters: OFAC dates of birth are parsed from the SDN `remarks` column; the EU file carries birth dates on separate rows of an entity group; the UK search-service export has no DOB or nationality (the OFSI ConList.csv does, see the tracker).
 
 Heavy ML imports (EasyOCR, DeepFace, OpenCV) are lazy, inside `KYCService.process_kyc`, so the API and screening endpoints start without them.

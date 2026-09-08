@@ -182,7 +182,8 @@ def test_decision_endpoint_end_to_end(client):
         "corridor": "QA-PH",
         "customer": {"full_name": "Abdul Rahman Yasin", "dob": "1960-04-10", "nationality": "IQ",
                      "document_type": "qatar_id", "document_number": "26036812345", "document_expiry": "2028-01-01",
-                     "mobile": "+974", "address_qatar": "Doha", "purpose": "family support", "reference": "CUST-9"},
+                     "place_of_birth": "Baghdad", "mobile": "+974", "address_qatar": "Doha", "profession": "driver",
+                     "employer_sponsor": "Acme WLL", "purpose": "family support", "reference": "CUST-9"},
         "beneficiary": {"full_name": "Maria Reyes", "country": "PH", "relationship": "spouse", "payout_channel": "cash",
                         "id_type": "ph_philsys", "id_number": "1234-5678-9012-3456"},
         "kyc": {"document_verified": True, "face_match": True, "document_expired": False},
@@ -210,9 +211,10 @@ def test_decision_endpoint_end_to_end(client):
 def test_decision_clean_customer_with_qid_mismatch(client):
     corridor_engine.reset_registry()
     payload = {"corridor": "QA-PH",
-               "customer": {"full_name": "Jonathan Whitfield", "dob": "1979-02-03", "nationality": "GB",
+               "customer": {"full_name": "Jonathan Whitfield", "dob": "1979-02-03", "place_of_birth": "Leeds", "nationality": "GB",
                             "document_type": "qatar_id", "document_number": "28560812345",  # encodes 1985 / PH
-                            "document_expiry": "2028-01-01", "mobile": "x", "address_qatar": "x", "purpose": "x"}}
+                            "document_expiry": "2028-01-01", "mobile": "x", "address_qatar": "x", "profession": "x",
+                            "employer_sponsor": "x", "purpose": "family support"}}
     body = client.post("/api/v1/decision", json=payload).json()
     assert body["outcome"] == "review"
     rules = {x["rule"] for x in body["reasons"]}
@@ -223,9 +225,10 @@ def test_decision_clean_customer_with_qid_mismatch(client):
 def test_decision_approve_when_everything_is_clean(client):
     corridor_engine.reset_registry()
     payload = {"corridor": "QA-PH",
-               "customer": {"full_name": "Jonathan Whitfield", "dob": "1979-02-03", "nationality": "GB",
+               "customer": {"full_name": "Jonathan Whitfield", "dob": "1979-02-03", "place_of_birth": "Leeds", "nationality": "GB",
                             "document_type": "passport", "document_number": "123456789", "document_expiry": "2030-01-01",
-                            "mobile": "x", "address_qatar": "x", "purpose": "x"}}
+                            "mobile": "x", "address_qatar": "x", "profession": "x", "employer_sponsor": "x",
+                            "purpose": "family support", "is_resident": False}}
     body = client.post("/api/v1/decision", json=payload).json()
     assert body["outcome"] == "approve" and body["reasons"] == [] and body["risk_score"] == 0
 
@@ -239,3 +242,119 @@ def test_corridors_listing_and_unknown_corridor(client):
     assert "screening.best_confidence" in client.get("/api/v1/corridors/fields").json()["fields"]
     r = client.post("/api/v1/decision", json={"corridor": "ZZ-ZZ", "customer": {"full_name": "A B"}})
     assert r.status_code == 404
+
+
+# ------------------------------------------------------ v0.2 corridor rules
+def _customer(**kw):
+    base = {"full_name": "Jonathan Whitfield", "dob": "1979-02-03", "place_of_birth": "Leeds", "nationality": "GB",
+            "document_type": "passport", "document_number": "123456789", "document_expiry": "2030-01-01", "mobile": "x",
+            "address_qatar": "x", "profession": "engineer", "employer_sponsor": "Acme", "purpose": "family support",
+            "is_resident": False}
+    base.update(kw)
+    return base
+
+
+def test_qcb_thresholds_and_charity_and_pep(client):
+    corridor_engine.reset_registry()
+    def decide(customer, transfer=None):
+        return client.post("/api/v1/decision", json={"corridor": "QA-PH", "customer": customer, "transfer": transfer}).json()
+
+    clean = decide(_customer(), {"amount": 2000, "currency": "QAR"})
+    assert clean["outcome"] == "approve" and clean["reasons"] == []
+
+    incomplete = decide(_customer(mobile=None, profession=None), {"amount": 4000, "currency": "QAR"})
+    assert {r["rule"] for r in incomplete["reasons"]} == {"missing-required-fields", "mvts-above-3500-needs-cdd"}
+    assert incomplete["outcome"] == "review"
+
+    big = decide(_customer(), {"amount": 50000, "currency": "QAR"})
+    assert [r["rule"] for r in big["reasons"]] == ["one-off-50000"]
+    assert "request_source_of_funds" in big["actions"]
+
+    charity = decide(_customer(), {"amount": 500, "currency": "QAR", "purpose": "donation to a mosque"})
+    assert [r["rule"] for r in charity["reasons"]] == ["charitable-purpose"]
+    assert charity["facts"]["transfer.purpose_category"] == "charity"
+
+    pep = decide(_customer(pep=True), {"amount": 500})
+    assert [r["rule"] for r in pep["reasons"]] == ["pep"] and "senior_approval" in pep["actions"]
+
+    payout = decide(_customer(), {"amount": 30000, "currency": "QAR", "receive_amount": 600000, "receive_currency": "PHP"})
+    assert "ph-large-payout" in {r["rule"] for r in payout["reasons"]}
+    assert "set_payout_channel_non_cash" in payout["actions"]
+
+    non_resident_qid = decide(_customer(is_resident=False, document_type="qatar_id", document_number="27682612345"), {"amount": 100})
+    assert "non-resident-without-passport" in {r["rule"] for r in non_resident_qid["reasons"]}
+
+
+def test_qid_holder_is_treated_as_resident(client):
+    corridor_engine.reset_registry()
+    body = client.post("/api/v1/decision", json={"corridor": "QA-PH", "customer": _customer(
+        is_resident=None, document_type="qatar_id", document_number="27982612345", nationality="GB", dob="1979-02-03")}).json()
+    assert body["facts"]["customer.is_resident"] is True
+    assert body["outcome"] == "approve", body["reasons"]
+
+
+# ---------------------------------------------------------- identifiers on lists
+def test_identity_number_on_a_list_is_a_definite_hit(sanctions_data_dir):
+    from tests.conftest import SAMPLE_COMBINED_CSV
+    from app.services.sanctions_loader import SanctionsLoader
+    from app.services.aml_service import AMLService
+    from datetime import datetime
+    row = "QA_NCTC,nctc.json,QL1,QLDi.099,Qatar NCTC domestic designation,individual,SOMEONE LISTED LOCALLY,,,,,YEMEN,,,,1980-05-05,1980,,QID: 28001234567; Passport: 01772281,Qatar domestic designation,,2025-01-01,2026-09-08,2026-09-08\n"
+    path = sanctions_data_dir / "combined" / f"combined_sanctions_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.csv"
+    path.write_text(SAMPLE_COMBINED_CSV + row)
+    SanctionsLoader.clear_cache()
+
+    # completely different name, same QID
+    r = AMLService.screen_sync("Totally Different Name", id_numbers=["280-0123-4567"])
+    assert r["sanctions_match"] is True
+    m = r["matches"][0]
+    assert m["match_type"] == "identifier" and m["sanctioned_name"] == "SOMEONE LISTED LOCALLY" and m["similarity"] == 100
+    assert "Customer identity number appears on a list" in r["details"]
+    # passport too, and short/unknown numbers never match
+    assert AMLService.screen_sync("X Y", id_numbers=["01772281"])["sanctions_match"] is True
+    assert AMLService.screen_sync("X Y", id_numbers=["1234"])["sanctions_match"] is False
+
+
+def test_identifier_match_rejects_in_decision(client, sanctions_data_dir):
+    from tests.conftest import SAMPLE_COMBINED_CSV
+    from app.services.sanctions_loader import SanctionsLoader
+    from datetime import datetime
+    row = "QA_NCTC,nctc.json,QL2,QLDi.100,Qatar NCTC domestic designation,individual,LISTED PERSON,,,,,YEMEN,,,,1980-05-05,1980,,QID: 28001234567,Qatar domestic designation,,2025-01-01,2026-09-08,2026-09-08\n"
+    (sanctions_data_dir / "combined" / f"combined_sanctions_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.csv").write_text(SAMPLE_COMBINED_CSV + row)
+    SanctionsLoader.clear_cache()
+    corridor_engine.reset_registry()
+    body = client.post("/api/v1/decision", json={"corridor": "QA-PH", "customer": _customer(
+        full_name="Unrelated Name", document_type="qatar_id", document_number="28001234567", nationality="YE", dob="1980-05-05", is_resident=True)}).json()
+    assert body["outcome"] == "reject"
+    assert "identifier-match" in {r["rule"] for r in body["reasons"]}
+    assert "inform_qcb_24h" in body["actions"]
+
+
+# ------------------------------------------------------------- NCTC converter
+def test_nctc_converter_on_fixture(tmp_path, monkeypatch):
+    import json, sys
+    sys.path.insert(0, "scripts")
+    import importlib
+    mod = importlib.import_module("convert_qa_nctc_to_csv")
+    items = [
+        {"dataId": "1", "listedOn": "2017-10-24", "referenceNumber": "QLDi.001", "firstNameEN": "Adil", "secondNameEN": "Abduh",
+         "thirdNameEN": "Uthman", "fourthNameEN": "al-Dhubhani", "fullNameEn": "Adil Abduh Uthman al-Dhubhani",
+         "fullNameAr": "عادل عبده عثمان الذبحاني", "typ": "1", "moiListType": "1", "nationality": "يمني", "qid": "",
+         "passportNo": "01010013602", "dobFormat": "EXACT_15/7/1963;1971___",
+         "designationDTO": {"legalBasisAr": "The Resolution of the Attorney General No.120 of 2025", "linkDecEn": "x"},
+         "sanctionsDTO": {"sanctionRegimeEn": "Security Council Resolution 1373 (2001)"}},
+        {"dataId": "2", "listedOn": "2010-06-09", "referenceNumber": "IRe.078", "fullNameEn": "YAZD METALLURGY INDUSTRIES (YMI)",
+         "fullNameAr": "YAZD METALLURGY INDUSTRIES (YMI)", "typ": "2", "moiListType": "0", "nationality": "", "qid": "",
+         "passportNo": "", "dobFormat": "", "aliases": "Directorate of Yazd Ammunition and Metallurgy Industries",
+         "designationDTO": {"legalBasisAr": "Security Council Resolution 2231 (2015)"}, "sanctionsDTO": {"sanctionRegimeEn": "Iranian Nuclear Issue"}},
+        {"dataId": "3", "fullNameEn": "", "fullNameAr": "", "typ": "1"},
+    ]
+    df = mod.convert(items, "nctc_test.json")
+    assert len(df) == 2
+    a = df.iloc[0]
+    assert a["source"] == "QA_NCTC" and a["record_type"] == "individual" and a["list_type"].endswith("domestic designation")
+    assert a["nationalities"] == "YEMEN" and a["dob_dates"] == "1963-07-15" and a["dob_years"] == "1963; 1971"
+    assert a["id_numbers"] == "Passport: 01010013602"
+    assert "عادل" in a["aliases"]
+    b = df.iloc[1]
+    assert b["record_type"] == "entity" and "UNSC" in b["list_type"] and "Directorate of Yazd" in b["aliases"]

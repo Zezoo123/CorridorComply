@@ -1,157 +1,765 @@
 {
   "id": "QA-PH",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "status": "draft",
   "reviewed_by": null,
   "reviewed_on": null,
   "title": "Qatar to Philippines remittance: onboarding and screening decision rules",
-  "notes": "VERSION ZERO. Drafted from public regulator material by the CorridorComply team and NOT reviewed by a compliance professional. Every threshold and document choice below must be confirmed against QCB instructions, BSP/AMLC rules and the firm's own risk assessment before use. Rules that encode facts (ID number formats, list mechanics) are testable; rules that encode judgement are placeholders for an advisor to correct.",
+  "notes": "VERSION 0.2. Rules that cite a section of the QCB AML/CFT Instructions (May 2020, published by QFIU), Law No. 20 of 2019, the QFCRA Guidance on Sanctions (2025) or BSP issuances were drafted from the primary text. Rules whose basis says 'firm policy' or 'confirm' are judgement placeholders. NOT reviewed by a compliance professional. Thresholds and document lists must still be confirmed against the current QCB instructions and the firm's own risk assessment before use.",
   "sources": [
-    "FATF Recommendations 10, 12, 16 (2012, as updated)",
-    "State of Qatar Law No. 20 of 2019 on Combating Money Laundering and Terrorism Financing (as amended)",
-    "Qatar Central Bank AML/CFT instructions for exchange houses (to be cited by section after review)",
-    "Bangko Sentral ng Pilipinas and AMLC rules for remittance and transfer companies (to be cited after review)",
-    "FATF High-Risk Jurisdictions subject to a Call for Action (current list)",
-    "Qatar ID number structure: century digit, birth year, ISO numeric nationality (public documentation)",
-    "PhilSys Card Number format (Philippine Statistics Authority)"
+    "Qatar Central Bank, AML/CFT Instructions (May 2020, English), published by the Qatar Financial Information Unit: items 6.7 (outsourcing), 10.4 (persons in sanctions lists: no relationship or transaction, within 24 hours; STR; inform QCB), 14.12 (linked one-off transactions and the QR 50,000 CDD threshold), 15.2 (customer identification data for individuals), 18 (MVTS and wire transfers: QR 3,500, full originator and recipient information cross-border, prohibition on listed persons at any value, charitable causes need prior approval, 10-year retention), 19.5 (STR immediately, by the MLRO, irrespective of amount)",
+    "State of Qatar, Law No. 20 of 2019 on Combating Money Laundering and Terrorism Financing: 10-year record keeping; CDD on occasional transactions at the threshold in the Implementing Regulation; wire transfers (Art. 18); DNFBP definition",
+    "Qatar Financial Centre Regulatory Authority, Guidance on the Implementation of an Effective Sanctions Compliance Programme (2025): screen immediately after publication of UNSC, NCTC domestic alerts or PPO orders; fuzzy matching calibrated to risk; keep records of all alerts including cleared false positives",
+    "Qatar National Counter Terrorism Committee, Unified Record of Persons and Entities on the Sanction List (Ministry of Interior portal, JSON, loaded as source QA_NCTC): UNSC designations as applied in Qatar plus domestic designations by Public Prosecutor order, with QID and passport numbers",
+    "Bangko Sentral ng Pilipinas, Circular No. 1206 (2024), Consolidated Rules for Money Service Businesses: large value pay-outs above PHP 500,000 require enhanced due diligence and payment only by cheque or credit to an account",
+    "Bangko Sentral ng Pilipinas, Circular No. 608 (2008), valid identification cards for financial transactions: one valid photo-bearing ID issued by an official authority for a first transaction; student beneficiaries may use a signed school ID",
+    "Bangko Sentral ng Pilipinas, Memorandum M-2025-012: all formats of the Philippine National ID (card, paper, digital) accepted in financial transactions",
+    "Anti-Money Laundering Council (Philippines): covered transaction reports above PHP 500,000 within five working days; STR timelines per AMLC regulations (confirm current deadline)",
+    "FATF Recommendations 6, 10, 12, 14, 16 and the FATF list of High-Risk Jurisdictions subject to a Call for Action (current list)",
+    "Qatar ID number structure (century digit, birth year, ISO numeric nationality); PhilSys Card Number format (Philippine Statistics Authority)"
   ],
   "sending": {
     "country": "QA",
     "currency": "QAR",
-    "regulators": ["Qatar Central Bank", "Qatar Financial Information Unit"],
-    "national_lists": ["Qatar National Counter Terrorism Committee designations (NOT LOADED YET)"],
+    "regulators": [
+      "Qatar Central Bank",
+      "Qatar Financial Information Unit"
+    ],
+    "national_lists": [
+      "Qatar NCTC unified record incl. domestic designations by Public Prosecutor order (source QA_NCTC, loaded)"
+    ],
     "documents": [
-      {"type": "qatar_id", "label": "Qatar ID card (QID)", "issuer": "QA", "customer_types": ["person"], "mrz": "TD1", "required": true,
-       "notes": "Primary ID for residents. Number encodes birth year and nationality; cross-checked against stated DOB and nationality."},
-      {"type": "passport", "label": "Passport", "issuer": "ANY", "customer_types": ["person"], "mrz": "TD3", "required": false,
-       "notes": "Accepted with a valid Qatar visa or entry for non-residents; MRZ verified."},
-      {"type": "commercial_registration", "label": "Commercial registration", "issuer": "QA", "customer_types": ["entity"], "required": true}
+      {
+        "type": "qatar_id",
+        "label": "Qatar ID card (QID)",
+        "issuer": "QA",
+        "customer_types": [
+          "person"
+        ],
+        "mrz": "TD1",
+        "required": true,
+        "notes": "Primary ID for residents. Number encodes birth year and nationality; cross-checked against stated DOB and nationality."
+      },
+      {
+        "type": "passport",
+        "label": "Passport",
+        "issuer": "ANY",
+        "customer_types": [
+          "person"
+        ],
+        "mrz": "TD3",
+        "required": false,
+        "notes": "Accepted with a valid Qatar visa or entry for non-residents; MRZ verified."
+      },
+      {
+        "type": "commercial_registration",
+        "label": "Commercial registration",
+        "issuer": "QA",
+        "customer_types": [
+          "entity"
+        ],
+        "required": true
+      }
     ],
     "required_fields": {
-      "person": ["full_name", "dob", "nationality", "document_type", "document_number", "document_expiry", "mobile", "address_qatar", "purpose"],
-      "entity": ["full_name", "document_type", "document_number", "registered_address", "ubo_names", "purpose"]
+      "person": [
+        "full_name",
+        "dob",
+        "place_of_birth",
+        "nationality",
+        "document_type",
+        "document_number",
+        "document_expiry",
+        "mobile",
+        "address_qatar",
+        "profession",
+        "employer_sponsor",
+        "purpose"
+      ],
+      "entity": [
+        "full_name",
+        "document_type",
+        "document_number",
+        "registered_address",
+        "ubo_names",
+        "purpose"
+      ]
     },
-    "notes": "Most senders are migrant workers paid under the Wage Protection System; salary card statements are a common source-of-funds document."
+    "notes": "QCB Instructions 15.2: identification data for individuals must include full name, aliases, permanent address, contact details, profession, work address, nationality, QID number for Qataris and residents or passport number for non-residents, date and place of birth, sponsor name and address, and purpose of the relationship; verified from a valid official document. Most senders are migrant workers paid under the Wage Protection System."
   },
   "receiving": {
     "country": "PH",
     "currency": "PHP",
-    "regulators": ["Bangko Sentral ng Pilipinas", "Anti-Money Laundering Council"],
+    "regulators": [
+      "Bangko Sentral ng Pilipinas",
+      "Anti-Money Laundering Council"
+    ],
     "national_lists": [],
     "documents": [
-      {"type": "ph_philsys", "label": "PhilSys national ID (PCN)", "issuer": "PH", "customer_types": ["person"]},
-      {"type": "passport", "label": "Philippine passport", "issuer": "PH", "customer_types": ["person"], "mrz": "TD3"},
-      {"type": "ph_umid", "label": "UMID card", "issuer": "PH", "customer_types": ["person"]},
-      {"type": "ph_drivers_license", "label": "LTO driver's licence", "issuer": "PH", "customer_types": ["person"]}
+      {
+        "type": "ph_philsys",
+        "label": "Philippine National ID / PhilID / ePhilID (any format)",
+        "issuer": "PH",
+        "customer_types": [
+          "person"
+        ],
+        "notes": "BSP M-2025-012: all formats accepted"
+      },
+      {
+        "type": "passport",
+        "label": "Philippine passport",
+        "issuer": "PH",
+        "customer_types": [
+          "person"
+        ],
+        "mrz": "TD3"
+      },
+      {
+        "type": "ph_drivers_license",
+        "label": "LTO driver's licence",
+        "issuer": "PH",
+        "customer_types": [
+          "person"
+        ]
+      },
+      {
+        "type": "ph_prc",
+        "label": "PRC ID",
+        "issuer": "PH",
+        "customer_types": [
+          "person"
+        ]
+      },
+      {
+        "type": "ph_umid",
+        "label": "UMID / SSS / GSIS e-Card",
+        "issuer": "PH",
+        "customer_types": [
+          "person"
+        ]
+      },
+      {
+        "type": "ph_postal",
+        "label": "Postal ID",
+        "issuer": "PH",
+        "customer_types": [
+          "person"
+        ]
+      },
+      {
+        "type": "ph_voter",
+        "label": "Voter's ID",
+        "issuer": "PH",
+        "customer_types": [
+          "person"
+        ]
+      },
+      {
+        "type": "ph_nbi",
+        "label": "NBI or police clearance",
+        "issuer": "PH",
+        "customer_types": [
+          "person"
+        ]
+      },
+      {
+        "type": "ph_owwa",
+        "label": "OWWA / OFW ID, Seaman's Book",
+        "issuer": "PH",
+        "customer_types": [
+          "person"
+        ]
+      },
+      {
+        "type": "ph_senior",
+        "label": "Senior Citizen card",
+        "issuer": "PH",
+        "customer_types": [
+          "person"
+        ]
+      },
+      {
+        "type": "ph_school",
+        "label": "School ID signed by the principal (beneficiaries below voting age only)",
+        "issuer": "PH",
+        "customer_types": [
+          "person"
+        ],
+        "notes": "BSP Circular 608 (b)"
+      }
     ],
     "required_fields": {
-      "beneficiary": ["full_name", "country", "relationship", "payout_channel"]
+      "beneficiary": [
+        "full_name",
+        "country",
+        "relationship",
+        "payout_channel"
+      ]
     },
-    "notes": "Beneficiary identity is verified by the paying partner at payout; the sender-side record must carry the fields the partner needs under Recommendation 16."
+    "notes": "BSP Circular 608: a first-time claimant presents one valid photo-bearing ID from an official authority. Circular 1206: pay-outs above PHP 500,000 need enhanced due diligence and go by cheque or account credit only. Sender-side record must carry full originator and beneficiary information (QCB 18(6), FATF R.16)."
   },
   "screening": {
-    "lists": ["UN", "OFAC", "UK", "EU"],
+    "lists": [
+      "UN",
+      "OFAC",
+      "UK",
+      "EU",
+      "QA_NCTC"
+    ],
     "threshold": 85,
     "require_dob_for_single_names": true,
     "screen_name_variants": true,
-    "high_risk_countries": ["KP", "IR", "MM"]
+    "high_risk_countries": [
+      "KP",
+      "IR",
+      "MM"
+    ]
   },
   "rules": [
-    {"id": "sanctions-true-match", "title": "Confirmed sanctions match",
-     "when": {"all": [{"field": "screening.best_confidence", "op": "eq", "value": "high"},
-                       {"field": "screening.best_dob_agreement", "op": "in", "value": ["exact", "year"]}]},
-     "outcome": "reject", "risk_add": 30,
-     "reason": "High-confidence name match with agreeing date of birth on a sanctions list. Treat as a true match: do not proceed, freeze, escalate to the MLRO, consider an STR.",
-     "actions": ["freeze_and_report", "escalate_mlro"],
-     "basis": "UNSC resolutions implemented under Qatar law; FATF R.6 targeted financial sanctions"},
-    {"id": "sanctions-high-unknown-dob", "title": "High-confidence match, DOB not comparable",
-     "when": {"all": [{"field": "screening.best_confidence", "op": "eq", "value": "high"},
-                       {"field": "screening.best_dob_agreement", "op": "in", "value": ["unknown", null]}]},
-     "outcome": "review", "risk_add": 15,
-     "reason": "High-confidence name match but the list entry or the customer has no date of birth to compare. A reviewer must confirm or clear.",
-     "actions": ["escalate_mlro", "request_additional_id"], "basis": "FATF R.10 CDD; firm screening procedure"},
-    {"id": "sanctions-high-dob-mismatch", "title": "High-confidence name match, DOB differs",
-     "when": {"all": [{"field": "screening.best_confidence", "op": "eq", "value": "high"},
-                       {"field": "screening.best_dob_agreement", "op": "eq", "value": "mismatch"}]},
-     "outcome": "review", "risk_add": 0,
-     "reason": "Name matches a listed person but the date of birth differs: probable namesake. Record the disposition with the DOB evidence.",
-     "actions": ["disposition_required"], "basis": "Firm screening procedure (secondary identifiers)"},
-    {"id": "sanctions-medium", "title": "Medium-confidence match",
-     "when": {"all": [{"field": "screening.best_confidence", "op": "eq", "value": "medium"}]},
-     "outcome": "review", "risk_add": 5,
-     "reason": "Medium-confidence name similarity to a listed person. Reviewer decides with nationality and DOB evidence.",
-     "actions": ["disposition_required"], "basis": "Firm screening procedure"},
-    {"id": "sanctions-alias-hit", "title": "Matched on a listed alias",
-     "when": {"all": [{"field": "screening.match", "op": "is_true"},
-                       {"field": "screening.best_match_type", "op": "eq", "value": "alias"}]},
-     "outcome": "review", "risk_add": 5,
-     "reason": "The hit was on an alias rather than the primary listed name; show the reviewer which alias.",
-     "actions": [], "basis": "Wolfsberg sanctions screening guidance (alias coverage)"},
-    {"id": "single-name-no-dob", "title": "Single-name customer without a date of birth",
-     "when": {"all": [{"field": "customer.name_flags", "op": "contains", "value": "single_name"},
-                       {"field": "customer.dob_present", "op": "is_false"}]},
-     "outcome": "review", "risk_add": 10,
-     "reason": "A single-token name cannot be screened meaningfully without a date of birth. Obtain DOB from the ID before onboarding.",
-     "actions": ["request_dob"], "basis": "Firm screening procedure; common on South Asian corridors"},
-    {"id": "qid-birth-year-mismatch", "title": "Qatar ID birth year does not match stated DOB",
-     "when": {"all": [{"field": "customer.document_type", "op": "eq", "value": "qatar_id"},
-                       {"field": "customer.id_birth_year_matches", "op": "is_false"}]},
-     "outcome": "review", "risk_add": 20,
-     "reason": "The birth year encoded in the QID number differs from the date of birth supplied. Possible data entry error or borrowed identity.",
-     "actions": ["verify_document"], "basis": "QID number structure"},
-    {"id": "qid-nationality-mismatch", "title": "Qatar ID nationality does not match stated nationality",
-     "when": {"all": [{"field": "customer.document_type", "op": "eq", "value": "qatar_id"},
-                       {"field": "customer.id_nationality_matches", "op": "is_false"}]},
-     "outcome": "review", "risk_add": 20,
-     "reason": "The nationality encoded in the QID number differs from the nationality supplied.",
-     "actions": ["verify_document"], "basis": "QID number structure"},
-    {"id": "id-format-invalid", "title": "Identity number is not well-formed",
-     "when": {"all": [{"field": "customer.id_valid", "op": "is_false"}]},
-     "outcome": "review", "risk_add": 10,
-     "reason": "The identity number does not match the published format for that document. Check for a typo before assuming fraud.",
-     "actions": ["verify_document"], "basis": "Document format specifications"},
-    {"id": "missing-required-fields", "title": "Required onboarding fields missing",
-     "when": {"all": [{"field": "customer.missing_fields", "op": "ne", "value": []}]},
-     "outcome": "review", "risk_add": 5,
-     "reason": "One or more fields the corridor requires for CDD are missing.",
-     "actions": ["complete_cdd"], "basis": "FATF R.10; QCB CDD requirements (cite after review)"},
-    {"id": "document-expired", "title": "Identity document expired",
-     "when": {"all": [{"field": "kyc.document_expired", "op": "is_true"}]},
-     "outcome": "reject", "risk_add": 20,
-     "reason": "The identity document has expired. A valid document is required before onboarding.",
-     "actions": ["request_valid_document"], "basis": "FATF R.10 reliable, independent source documents"},
-    {"id": "face-mismatch", "title": "Selfie does not match the document photo",
-     "when": {"all": [{"field": "kyc.face_match", "op": "is_false"}]},
-     "outcome": "review", "risk_add": 25,
-     "reason": "Face comparison between selfie and document failed. Manual verification required; possible third-party use of a worker's ID.",
-     "actions": ["manual_id_verification"], "basis": "Firm CDD procedure; corridor typology (borrowed identity)"},
-    {"id": "high-risk-nationality", "title": "Customer from a FATF call-for-action jurisdiction",
-     "when": {"any": [{"field": "customer.nationality", "op": "in", "value": ["KP", "IR", "MM"]},
-                       {"field": "customer.residence_country", "op": "in", "value": ["KP", "IR", "MM"]}]},
-     "outcome": "review", "risk_add": 25,
-     "reason": "Enhanced due diligence required for customers connected to a jurisdiction subject to a FATF call for action.",
-     "actions": ["enhanced_due_diligence", "senior_approval"], "basis": "FATF R.19; QCB instructions on high-risk countries"},
-    {"id": "beneficiary-id-invalid", "title": "Beneficiary identity number not well-formed",
-     "when": {"all": [{"field": "beneficiary.id_valid", "op": "is_false"}]},
-     "outcome": "review", "risk_add": 5,
-     "reason": "The beneficiary ID number does not match the Philippine format given. Correct before sending, or the payout partner will reject.",
-     "actions": ["correct_beneficiary"], "basis": "FATF R.16 beneficiary information; payout partner requirements"},
-    {"id": "beneficiary-fields-missing", "title": "Beneficiary record incomplete",
-     "when": {"all": [{"field": "beneficiary.present", "op": "is_true"},
-                       {"field": "beneficiary.missing_fields", "op": "ne", "value": []}]},
-     "outcome": "review", "risk_add": 5,
-     "reason": "The beneficiary record lacks fields the receiving side requires.",
-     "actions": ["complete_beneficiary"], "basis": "FATF R.16"},
-    {"id": "minor-sender", "title": "Sender under 18",
-     "when": {"all": [{"field": "customer.age", "op": "lt", "value": 18}]},
-     "outcome": "reject", "risk_add": 10,
-     "reason": "Sender is a minor.",
-     "actions": [], "basis": "Firm policy (confirm minimum age with QCB instructions)"}
+    {
+      "id": "sanctions-true-match",
+      "title": "Listed person: UNSC or Qatar NCTC designation confirmed",
+      "when": {
+        "all": [
+          {
+            "field": "screening.best_confidence",
+            "op": "eq",
+            "value": "high"
+          },
+          {
+            "field": "screening.best_dob_agreement",
+            "op": "in",
+            "value": [
+              "exact",
+              "year"
+            ]
+          }
+        ]
+      },
+      "outcome": "reject",
+      "risk_add": 30,
+      "reason": "High-confidence name match with agreeing date of birth on a UNSC, NCTC or other sanctions list. QCB Instructions 10.4: do not establish or continue the relationship or carry out the transaction, within 24 hours; make an STR to the FIU; inform QCB within 24 hours. 18(9): no transaction of any value.",
+      "actions": [
+        "freeze_and_report",
+        "str_to_fiu",
+        "inform_qcb_24h",
+        "escalate_mlro"
+      ],
+      "basis": "QCB AML/CFT Instructions 10.4, 18(9); Law 20/2019 targeted financial sanctions; FATF R.6"
+    },
+    {
+      "id": "identifier-match",
+      "title": "Customer's ID number appears on a list",
+      "when": {
+        "all": [
+          {
+            "field": "screening.best_match_type",
+            "op": "eq",
+            "value": "identifier"
+          }
+        ]
+      },
+      "outcome": "reject",
+      "risk_add": 40,
+      "reason": "The customer's Qatar ID or passport number appears on the NCTC unified record. This is an exact identifier match, not a name similarity. QCB 10.4 applies: no transaction, STR, inform QCB within 24 hours.",
+      "actions": [
+        "freeze_and_report",
+        "str_to_fiu",
+        "inform_qcb_24h",
+        "escalate_mlro"
+      ],
+      "basis": "QCB AML/CFT Instructions 10.4, 18(9); NCTC unified record carries QID and passport numbers"
+    },
+    {
+      "id": "sanctions-high-unknown-dob",
+      "title": "High-confidence match, DOB not comparable",
+      "when": {
+        "all": [
+          {
+            "field": "screening.best_confidence",
+            "op": "eq",
+            "value": "high"
+          },
+          {
+            "field": "screening.best_dob_agreement",
+            "op": "in",
+            "value": [
+              "unknown",
+              null
+            ]
+          }
+        ]
+      },
+      "outcome": "review",
+      "risk_add": 15,
+      "reason": "High-confidence name match but the list entry or the customer has no date of birth to compare. A reviewer must confirm or clear.",
+      "actions": [
+        "escalate_mlro",
+        "request_additional_id"
+      ],
+      "basis": "QCB AML/CFT Instructions 10.4 (ongoing check against UNSC and NCTC lists); QFCRA sanctions guidance para 16-21 (alert review and records)"
+    },
+    {
+      "id": "sanctions-high-dob-mismatch",
+      "title": "High-confidence name match, DOB differs",
+      "when": {
+        "all": [
+          {
+            "field": "screening.best_confidence",
+            "op": "eq",
+            "value": "high"
+          },
+          {
+            "field": "screening.best_dob_agreement",
+            "op": "eq",
+            "value": "mismatch"
+          }
+        ]
+      },
+      "outcome": "review",
+      "risk_add": 0,
+      "reason": "Name matches a listed person but the date of birth differs: probable namesake. Record the disposition with the DOB evidence.",
+      "actions": [
+        "disposition_required"
+      ],
+      "basis": "QFCRA sanctions guidance (fuzzy matching calibrated to risk; records of cleared false positives kept)"
+    },
+    {
+      "id": "sanctions-medium",
+      "title": "Medium-confidence match",
+      "when": {
+        "all": [
+          {
+            "field": "screening.best_confidence",
+            "op": "eq",
+            "value": "medium"
+          }
+        ]
+      },
+      "outcome": "review",
+      "risk_add": 5,
+      "reason": "Medium-confidence name similarity to a listed person. Reviewer decides with nationality and DOB evidence.",
+      "actions": [
+        "disposition_required"
+      ],
+      "basis": "Firm screening procedure"
+    },
+    {
+      "id": "sanctions-alias-hit",
+      "title": "Matched on a listed alias",
+      "when": {
+        "all": [
+          {
+            "field": "screening.match",
+            "op": "is_true"
+          },
+          {
+            "field": "screening.best_match_type",
+            "op": "eq",
+            "value": "alias"
+          }
+        ]
+      },
+      "outcome": "review",
+      "risk_add": 5,
+      "reason": "The hit was on an alias rather than the primary listed name; show the reviewer which alias.",
+      "actions": [],
+      "basis": "Wolfsberg sanctions screening guidance (alias coverage)"
+    },
+    {
+      "id": "single-name-no-dob",
+      "title": "Single-name customer without a date of birth",
+      "when": {
+        "all": [
+          {
+            "field": "customer.name_flags",
+            "op": "contains",
+            "value": "single_name"
+          },
+          {
+            "field": "customer.dob_present",
+            "op": "is_false"
+          }
+        ]
+      },
+      "outcome": "review",
+      "risk_add": 10,
+      "reason": "A single-token name cannot be screened meaningfully without a date of birth. Obtain DOB from the ID before onboarding.",
+      "actions": [
+        "request_dob"
+      ],
+      "basis": "Firm screening procedure; common on South Asian corridors"
+    },
+    {
+      "id": "qid-birth-year-mismatch",
+      "title": "Qatar ID birth year does not match stated DOB",
+      "when": {
+        "all": [
+          {
+            "field": "customer.document_type",
+            "op": "eq",
+            "value": "qatar_id"
+          },
+          {
+            "field": "customer.id_birth_year_matches",
+            "op": "is_false"
+          }
+        ]
+      },
+      "outcome": "review",
+      "risk_add": 20,
+      "reason": "The birth year encoded in the QID number differs from the date of birth supplied. Possible data entry error or borrowed identity.",
+      "actions": [
+        "verify_document"
+      ],
+      "basis": "QID number structure"
+    },
+    {
+      "id": "qid-nationality-mismatch",
+      "title": "Qatar ID nationality does not match stated nationality",
+      "when": {
+        "all": [
+          {
+            "field": "customer.document_type",
+            "op": "eq",
+            "value": "qatar_id"
+          },
+          {
+            "field": "customer.id_nationality_matches",
+            "op": "is_false"
+          }
+        ]
+      },
+      "outcome": "review",
+      "risk_add": 20,
+      "reason": "The nationality encoded in the QID number differs from the nationality supplied.",
+      "actions": [
+        "verify_document"
+      ],
+      "basis": "QID number structure"
+    },
+    {
+      "id": "id-format-invalid",
+      "title": "Identity number is not well-formed",
+      "when": {
+        "all": [
+          {
+            "field": "customer.id_valid",
+            "op": "is_false"
+          }
+        ]
+      },
+      "outcome": "review",
+      "risk_add": 10,
+      "reason": "The identity number does not match the published format for that document. Check for a typo before assuming fraud.",
+      "actions": [
+        "verify_document"
+      ],
+      "basis": "Document format specifications"
+    },
+    {
+      "id": "missing-required-fields",
+      "title": "Required onboarding fields missing",
+      "when": {
+        "all": [
+          {
+            "field": "customer.missing_fields",
+            "op": "ne",
+            "value": []
+          }
+        ]
+      },
+      "outcome": "review",
+      "risk_add": 5,
+      "reason": "One or more fields the corridor requires for CDD are missing.",
+      "actions": [
+        "complete_cdd"
+      ],
+      "basis": "QCB AML/CFT Instructions 15.2 (identification data for individuals); Law 20/2019 CDD"
+    },
+    {
+      "id": "document-expired",
+      "title": "Identity document expired",
+      "when": {
+        "all": [
+          {
+            "field": "kyc.document_expired",
+            "op": "is_true"
+          }
+        ]
+      },
+      "outcome": "reject",
+      "risk_add": 20,
+      "reason": "The identity document has expired. A valid document is required before onboarding.",
+      "actions": [
+        "request_valid_document"
+      ],
+      "basis": "FATF R.10 reliable, independent source documents"
+    },
+    {
+      "id": "face-mismatch",
+      "title": "Selfie does not match the document photo",
+      "when": {
+        "all": [
+          {
+            "field": "kyc.face_match",
+            "op": "is_false"
+          }
+        ]
+      },
+      "outcome": "review",
+      "risk_add": 25,
+      "reason": "Face comparison between selfie and document failed. Manual verification required; possible third-party use of a worker's ID.",
+      "actions": [
+        "manual_id_verification"
+      ],
+      "basis": "Firm CDD procedure; corridor typology (borrowed identity)"
+    },
+    {
+      "id": "high-risk-nationality",
+      "title": "Customer from a FATF call-for-action jurisdiction",
+      "when": {
+        "any": [
+          {
+            "field": "customer.nationality",
+            "op": "in",
+            "value": [
+              "KP",
+              "IR",
+              "MM"
+            ]
+          },
+          {
+            "field": "customer.residence_country",
+            "op": "in",
+            "value": [
+              "KP",
+              "IR",
+              "MM"
+            ]
+          }
+        ]
+      },
+      "outcome": "review",
+      "risk_add": 25,
+      "reason": "Enhanced due diligence required for customers connected to a jurisdiction subject to a FATF call for action.",
+      "actions": [
+        "enhanced_due_diligence",
+        "senior_approval"
+      ],
+      "basis": "FATF R.19; QCB AML/CFT Instructions on high-risk countries (cite section after review)"
+    },
+    {
+      "id": "beneficiary-id-invalid",
+      "title": "Beneficiary identity number not well-formed",
+      "when": {
+        "all": [
+          {
+            "field": "beneficiary.id_valid",
+            "op": "is_false"
+          }
+        ]
+      },
+      "outcome": "review",
+      "risk_add": 5,
+      "reason": "The beneficiary ID number does not match the Philippine format given. Correct before sending, or the payout partner will reject.",
+      "actions": [
+        "correct_beneficiary"
+      ],
+      "basis": "FATF R.16 beneficiary information; payout partner requirements"
+    },
+    {
+      "id": "beneficiary-fields-missing",
+      "title": "Beneficiary record incomplete",
+      "when": {
+        "all": [
+          {
+            "field": "beneficiary.present",
+            "op": "is_true"
+          },
+          {
+            "field": "beneficiary.missing_fields",
+            "op": "ne",
+            "value": []
+          }
+        ]
+      },
+      "outcome": "review",
+      "risk_add": 5,
+      "reason": "The beneficiary record lacks fields the receiving side requires.",
+      "actions": [
+        "complete_beneficiary"
+      ],
+      "basis": "FATF R.16"
+    },
+    {
+      "id": "minor-sender",
+      "title": "Sender under 18",
+      "when": {
+        "all": [
+          {
+            "field": "customer.age",
+            "op": "lt",
+            "value": 18
+          }
+        ]
+      },
+      "outcome": "reject",
+      "risk_add": 10,
+      "reason": "Sender is a minor.",
+      "actions": [],
+      "basis": "Firm policy (confirm minimum age with QCB instructions)"
+    },
+    {
+      "id": "mvts-above-3500-needs-cdd",
+      "title": "Transfer above QR 3,500 requires full CDD",
+      "when": {
+        "all": [
+          {
+            "field": "transfer.amount",
+            "op": "gt",
+            "value": 3500
+          },
+          {
+            "field": "customer.missing_fields",
+            "op": "ne",
+            "value": []
+          }
+        ]
+      },
+      "outcome": "review",
+      "risk_add": 10,
+      "reason": "QCB requires customer due diligence for money or value transfers above QR 3,500; identification data is incomplete for this sender.",
+      "actions": [
+        "complete_cdd"
+      ],
+      "basis": "QCB AML/CFT Instructions, CDD triggers (MVTS above QR 3,500); 18(5)-(6) originator information"
+    },
+    {
+      "id": "one-off-50000",
+      "title": "One-off transaction at or above QR 50,000",
+      "when": {
+        "all": [
+          {
+            "field": "transfer.amount",
+            "op": "gte",
+            "value": 50000
+          }
+        ]
+      },
+      "outcome": "review",
+      "risk_add": 15,
+      "reason": "Large one-off transaction at or above the QR 50,000 CDD threshold. Verify source of funds; check for linked transactions intended to stay below the threshold.",
+      "actions": [
+        "request_source_of_funds",
+        "check_linked_transactions"
+      ],
+      "basis": "QCB AML/CFT Instructions CDD triggers (one-off transaction of at least QR 50,000) and 14.12 (linked one-off transactions)"
+    },
+    {
+      "id": "charitable-purpose",
+      "title": "Transfer for a charitable cause",
+      "when": {
+        "all": [
+          {
+            "field": "transfer.purpose_category",
+            "op": "eq",
+            "value": "charity"
+          }
+        ]
+      },
+      "outcome": "review",
+      "risk_add": 20,
+      "reason": "QCB prohibits transfers of any value for charitable causes through an MVTS without prior approval from the relevant authority. Hold until approval is evidenced.",
+      "actions": [
+        "require_authority_approval",
+        "escalate_mlro"
+      ],
+      "basis": "QCB AML/CFT Instructions 18(10)"
+    },
+    {
+      "id": "pep",
+      "title": "Politically exposed person",
+      "when": {
+        "all": [
+          {
+            "field": "customer.pep",
+            "op": "is_true"
+          }
+        ]
+      },
+      "outcome": "review",
+      "risk_add": 20,
+      "reason": "Customer is a politically exposed person (or family member or close associate to the second degree). Enhanced due diligence, source of wealth and funds, senior management approval.",
+      "actions": [
+        "enhanced_due_diligence",
+        "senior_approval",
+        "source_of_wealth"
+      ],
+      "basis": "QCB AML/CFT Instructions 10.3 (measures for PEPs); FATF R.12"
+    },
+    {
+      "id": "non-resident-without-passport",
+      "title": "Non-resident sender without a passport number",
+      "when": {
+        "all": [
+          {
+            "field": "customer.is_resident",
+            "op": "is_false"
+          },
+          {
+            "field": "customer.document_type",
+            "op": "ne",
+            "value": "passport"
+          }
+        ]
+      },
+      "outcome": "review",
+      "risk_add": 10,
+      "reason": "QCB identification data requires the QID number for Qataris and residents and the passport number for non-residents.",
+      "actions": [
+        "request_valid_document"
+      ],
+      "basis": "QCB AML/CFT Instructions 15.2"
+    },
+    {
+      "id": "ph-large-payout",
+      "title": "Pay-out above PHP 500,000 on the receiving side",
+      "when": {
+        "all": [
+          {
+            "field": "transfer.receive_amount",
+            "op": "gt",
+            "value": 500000
+          }
+        ]
+      },
+      "outcome": "review",
+      "risk_add": 15,
+      "reason": "Pay-outs above PHP 500,000 require enhanced due diligence by the paying partner and may only be paid by cheque or credit to an account, not cash. Confirm the payout channel with the partner and complete EDD before sending.",
+      "actions": [
+        "enhanced_due_diligence",
+        "set_payout_channel_non_cash",
+        "notify_payout_partner"
+      ],
+      "basis": "BSP Circular 1206 (2024), regulation on large value pay-outs; AMLC covered transaction reporting above PHP 500,000"
+    }
   ],
   "reporting": {
     "fiu": "Qatar Financial Information Unit",
     "portal": "Ekhtar",
-    "str_prefill_fields": ["customer.full_name", "customer.dob", "customer.nationality", "customer.document_type", "customer.document_number",
-                           "screening.best_source", "screening.best_similarity", "screening.best_dob_agreement", "decision.reasons", "list_version"]
+    "str_prefill_fields": [
+      "customer.full_name",
+      "customer.dob",
+      "customer.nationality",
+      "customer.document_type",
+      "customer.document_number",
+      "screening.best_source",
+      "screening.best_similarity",
+      "screening.best_dob_agreement",
+      "screening.best_match_type",
+      "decision.reasons",
+      "list_version"
+    ]
   }
 }

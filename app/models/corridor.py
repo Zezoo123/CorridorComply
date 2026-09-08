@@ -12,8 +12,14 @@ class CustomerIn(BaseModel):
     document_type: Optional[str] = Field(None, description="qatar_id | passport | pk_cnic | in_aadhaar | bd_nid | ph_philsys | commercial_registration ...")
     document_number: Optional[str] = None
     document_expiry: Optional[str] = None
+    place_of_birth: Optional[str] = None
     mobile: Optional[str] = None
     address_qatar: Optional[str] = None
+    profession: Optional[str] = None
+    employer_sponsor: Optional[str] = None
+    pep: Optional[bool] = Field(None, description="Politically exposed person, self-declared or from a PEP source")
+    is_resident: Optional[bool] = None
+    first_transaction: Optional[bool] = None
     registered_address: Optional[str] = None
     ubo_names: Optional[List[str]] = None
     purpose: Optional[str] = None
@@ -40,9 +46,12 @@ class KycIn(BaseModel):
 
 
 class TransferIn(BaseModel):
-    amount: Optional[float] = None
+    amount: Optional[float] = Field(None, description="In the sending currency")
     currency: Optional[str] = None
+    receive_amount: Optional[float] = Field(None, description="In the receiving currency")
+    receive_currency: Optional[str] = None
     purpose: Optional[str] = None
+    purpose_category: Optional[str] = Field(None, description="family_support | charity | business | education | medical | savings | other")
 
 
 class DecisionRequest(BaseModel):

@@ -78,6 +78,28 @@ def reset_registry() -> None:
 
 
 # ------------------------------------------------------------- facts
+_PURPOSE_WORDS = {
+    "charity": ("charit", "donat", "zakat", "sadaqa", "mosque", "ngo", "relief", "fundrais"),
+    "family_support": ("family", "support", "living", "household", "parents", "wife", "children", "allowance"),
+    "business": ("business", "trade", "invoice", "supplier", "goods", "commercial"),
+    "education": ("tuition", "school", "education", "university"),
+    "medical": ("medical", "hospital", "treatment", "health"),
+    "savings": ("saving", "deposit", "investment", "property", "loan"),
+}
+
+
+def _purpose_category(value) -> Optional[str]:
+    if not value:
+        return None
+    v = str(value).strip().lower()
+    if v in _PURPOSE_WORDS or v == "other":
+        return v
+    for cat, words in _PURPOSE_WORDS.items():
+        if any(w in v for w in words):
+            return cat
+    return "other"
+
+
 def _age(dob: Optional[str]) -> Optional[int]:
     d = parse_iso_date(dob)
     if not d:
@@ -151,8 +173,13 @@ def build_facts(ruleset: Ruleset, customer: Dict[str, Any], screening: Dict[str,
         "beneficiary.id_valid": ben_id.valid if ben_id else None,
         "beneficiary.country": (beneficiary.get("country") or "").upper() or None,
         "beneficiary.missing_fields": ben_missing,
+        "customer.pep": customer.get("pep"),
+        "customer.is_resident": customer.get("is_resident") if customer.get("is_resident") is not None else (True if id_type == "qatar_id" else None),
+        "customer.first_transaction": customer.get("first_transaction"),
         "transfer.amount": transfer.get("amount"),
+        "transfer.receive_amount": transfer.get("receive_amount"),
         "transfer.purpose": transfer.get("purpose"),
+        "transfer.purpose_category": _purpose_category(transfer.get("purpose_category") or transfer.get("purpose") or customer.get("purpose")),
         "_id_check": id_check.to_dict() if id_check else None,
         "_beneficiary_id_check": ben_id.to_dict() if ben_id else None,
         "_name_analysis": name_info.to_dict(),

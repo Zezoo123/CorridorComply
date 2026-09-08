@@ -29,6 +29,9 @@ FIELDS: Dict[str, str] = {
     "customer.id_nationality_matches": "bool|null: id-encoded nationality vs stated",
     "customer.missing_fields": "list of required fields not supplied",
     "customer.name_flags": "list: single_name, patronymic, compound_surname",
+    "customer.pep": "bool|null: politically exposed person (self-declared or from a PEP source)",
+    "customer.is_resident": "bool|null: resident of the sending country (QID holder) vs visitor",
+    "customer.first_transaction": "bool|null: first dealing with this firm",
     "screening.match": "bool",
     "screening.match_count": "int",
     "screening.best_confidence": "high | medium | low | null",
@@ -47,8 +50,10 @@ FIELDS: Dict[str, str] = {
     "beneficiary.id_valid": "bool|null",
     "beneficiary.country": "ISO alpha-2",
     "beneficiary.missing_fields": "list",
-    "transfer.amount": "number in the corridor currency",
+    "transfer.amount": "number in the sending currency (QAR on QA-*)",
+    "transfer.receive_amount": "number in the receiving currency (PHP on *-PH)",
     "transfer.purpose": "string",
+    "transfer.purpose_category": "family_support | charity | business | education | medical | savings | other",
 }
 
 

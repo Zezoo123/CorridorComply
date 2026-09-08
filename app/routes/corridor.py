@@ -76,6 +76,7 @@ async def make_decision(request: Request, payload: DecisionRequest, session: Ses
     screening = AMLService.screen_sync(
         c.full_name, dob=c.dob, nationality=c.nationality, entity_type=c.entity_type, request_id=request_id,
         threshold=ruleset.screening.threshold, use_variants=ruleset.screening.screen_name_variants,
+        id_numbers=[c.document_number] if c.document_number else None,
     )
     customer = None
     if c.reference:

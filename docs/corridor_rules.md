@@ -48,14 +48,69 @@ beneficiary, KYC results and transfer:
 Edit the JSON, restart (or call `reset_registry()`); no code change. The test
 `test_changing_a_threshold_in_the_file_changes_the_decision` proves it.
 
-## Version zero of QA-PH
+## What the primary sources say (QA-PH)
 
-`premium/corridor_rules/qa_ph_rules.json` was drafted from public material and
-is **not reviewed**. Rules that encode facts (ID formats, list mechanics,
-FATF call-for-action countries) are testable today. Rules that encode
-judgement (which fields QCB requires, thresholds, minimum age) are placeholders
-for a compliance advisor to correct and sign. Until then every decision carries
-`ruleset_status: draft`.
+Read on 8 September 2026 from the documents themselves; section numbers are
+given so a reviewer can check the wording.
+
+**Qatar Central Bank, AML/CFT Instructions (May 2020, English, published by QFIU)**
+- 10.4: from the outset and on an ongoing basis, check whether a person is listed
+  under a UNSC resolution or a Terrorist Designation Public Prosecutor Order
+  circulated by the NCTC. If listed: no relationship or transaction, immediately
+  (within 24 hours); STR to the FIU; inform QCB within 24 hours.
+- CDD triggers include a one-off transaction of at least QR 50,000, a linked series
+  totalling QR 50,000, and **carrying out MVTS above QR 3,500**; 14.12 requires
+  systems to spot linked one-off transactions meant to stay under QR 50,000.
+- 15.2: identification data for individuals: full name, aliases, permanent address,
+  contact details, profession, work address, nationality, **QID number for Qataris
+  and residents, passport number for non-residents**, date and place of birth,
+  sponsor name and address, purpose; verified from a valid official document.
+- 18: MVTS and wire transfers. Cross-border transfers carry full originator and
+  recipient information; domestic transfers under QR 3,500 may carry names and
+  account or reference only; a beneficiary provider rejects or chases missing
+  information; **no transaction of any value with a listed person** (18(9));
+  **charitable causes need prior approval** (18(10)); originator and recipient
+  information kept 10 years (18(14)).
+- 19.5: STR immediately, by the MLRO or deputy, irrespective of amount, even if no
+  transaction happened; inform QCB when the STR concerns a proposed transaction.
+- 6.7: outsourcing. The institution and its Board stay responsible; the SLA must
+  bind the vendor to the Law and the firm's procedures and give the MLRO, QCB and
+  FIU unrestricted access to documents. This shapes our contract and the on-premise
+  deployment.
+
+**Law No. 20 of 2019**: records kept at least ten years after the relationship
+ends or the transaction completes; CDD on occasional transactions at the
+threshold set in the Implementing Regulation; wire transfers in Article 18.
+
+**QFCRA, Guidance on an Effective Sanctions Compliance Programme (2025)**:
+screen immediately after publication of UNSC sanctions, NCTC domestic alerts or
+PPO orders; fuzzy matching calibrated to the firm's risk; keep records of all
+alerts and actions, including cleared false positives.
+
+**Qatar NCTC unified record** (Ministry of Interior portal): 864 entries on
+8 September 2026, 595 individuals and 269 entities, of which 112 are domestic
+designations by Public Prosecutor order (reference numbers QLDi/QLDe); 119
+entries carry a QID and 248 a passport number. Loaded as source `QA_NCTC` and
+matched on identity number as well as name.
+
+**Bangko Sentral ng Pilipinas**: Circular 1206 (2024), consolidated money service
+business rules: pay-outs above PHP 500,000 require enhanced due diligence and are
+paid only by cheque or account credit. Circular 608: a first-time claimant
+presents one valid photo-bearing ID from an official authority (list in the
+ruleset); beneficiaries below voting age may use a signed school ID. Memorandum
+M-2025-012: every format of the National ID is accepted. AMLC: covered
+transaction reports above PHP 500,000 within five working days.
+
+**Not yet found in primary text** and therefore still marked "confirm": the exact
+QCB expectations for exchange-house customer risk rating, the current AMLC STR
+deadline for RTCs, and the receiving partner's own beneficiary rules.
+
+## Version 0.2 of QA-PH
+
+`premium/corridor_rules/qa_ph_rules.json` has 23 rules. Those citing a section
+above were drafted from the primary text; those whose basis says "firm policy" or
+"confirm" are judgement placeholders. It is **not reviewed** by a compliance
+professional, and every decision carries `ruleset_status: draft` until it is.
 
 ## Identity validators
 
