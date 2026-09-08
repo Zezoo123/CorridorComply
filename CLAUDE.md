@@ -52,6 +52,14 @@ FastAPI routers:
 - `sanctions_loader.py` - Loads/caches combined sanctions CSV, auto-finds latest file
 - `face_match.py` - DeepFace-based face comparison
 
+### Corridor engine (`app/corridor/`)
+- `schema.py` - Pydantic contract for a ruleset (documents, required fields, screening policy, rules with `when` conditions over `FIELDS`, reporting). `status` must be `draft` until `reviewed_by` is set.
+- `engine.py` - `RulesetRegistry` loads `premium/corridor_rules/*.json` (or `CORRIDOR_RULES_DIR`); `decide()` builds facts and fires every matching rule; outcome is the most severe.
+- `identifiers.py` - ID-number validators: `qatar_id` (birth year + nationality), `pk_cnic`, `in_aadhaar` (Verhoeff), `bd_nid`, `ph_philsys`, passports.
+- `names.py` - Population-aware name variants and flags; used by `AMLService.screen_sync` when `use_variants` is on.
+- Routes in `app/routes/corridor.py`: `/api/v1/decision`, `/api/v1/decisions`, `/api/v1/corridors`. Decisions persist in the `decisions` table (migration 0002).
+- Tests use `tests/data/corridor_rules/` via `CORRIDOR_RULES_DIR` and `reset_registry()`.
+
 ### Database (`app/db/`)
 SQLAlchemy 2 models in `models.py`; lazy engine in `database.py` (`DATABASE_URL`, default SQLite under `data/`); Alembic migrations in `migrations/` (`alembic upgrade head`). Tests get a fresh SQLite file via the `db` fixture. `app/monitoring.py` is the re-screen CLI for cron.
 
@@ -67,6 +75,8 @@ SQLAlchemy 2 models in `models.py`; lazy engine in `database.py` (`DATABASE_URL`
 
 ### Sanctions Data Pipeline
 Raw data in `app/data/sanctions/raw/{un,ofac,uk,eu}/` is converted by `scripts/convert_*.py` to normalized CSVs in `normalized/`, then combined into `combined/combined_sanctions_*.csv` (the combiner keeps the newest three). The loader picks the latest combined file by modification time and caches it in memory. `SANCTIONS_DATA_DIR` overrides the data location; tests use a temp dir via the `sanctions_data_dir` fixture.
+
+Sources: UN, OFAC, UK (OFSI ConList), EU, QA_NCTC (Qatar NCTC unified record from the MOI portal JSON; `scripts/convert_qa_nctc_to_csv.py`). The screening index also matches identity numbers (`identifier_keys`, `match_type: identifier`).
 
 Converters: OFAC dates of birth are parsed from the SDN `remarks` column; the EU file carries birth dates on separate rows of an entity group; the UK search-service export has no DOB or nationality (the OFSI ConList.csv does, see the tracker).
 
@@ -94,6 +104,7 @@ Environment variables (see `app/config.py`):
 - `SANCTIONS_AUTO_UPDATE_ENABLED` - Auto-update on startup (default: false; use the scheduler)
 - `DATABASE_URL` - SQLAlchemy URL (default SQLite in `data/`)
 - `UI_TENANT` - Tenant the web UI acts for (default `default`)
+- `CORRIDOR_RULES_DIR` - Directory of corridor ruleset JSON files (default `premium/corridor_rules`)
 - `ENVIRONMENT` - development/production
 - `DEBUG` - Enable debug mode
 - `CORS_ORIGINS` - Comma-separated allowed origins (unset = no CORS headers)

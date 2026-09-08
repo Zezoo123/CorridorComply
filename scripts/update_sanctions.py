@@ -7,6 +7,7 @@ This script automatically downloads fresh sanctions lists from:
 - OFAC: https://www.treasury.gov/ofac/downloads/sdn.csv (and alt.csv, add.csv)
 - UK: https://search-uk-sanctions-list.service.gov.uk/api/report/ods (API endpoint)
 - EU: https://webgate.ec.europa.eu/fsd/fsf/public/files/csvFullSanctionsList_1_1/content (direct CSV)
+- Qatar NCTC unified record (UNSC + domestic designations): MOI portal JSON
 
 Then converts and combines them into a single unified list.
 
@@ -53,6 +54,9 @@ UK_SANCTIONS_URL = "https://search-uk-sanctions-list.service.gov.uk/"
 EU_SANCTIONS_URL = "https://webgate.ec.europa.eu/fsd/fsf/public/files/csvFullSanctionsList_1_1/content?token=dG9rZW4tMjAxNw"
 # Alternative CSV format (if needed)
 # EU_SANCTIONS_CSV_URL = "https://webgate.ec.europa.eu/fsd/fsf/public/files/csvFullSanctionsList_1_1/content?token=dG9rZW4tMjAxNw=="
+
+# Qatar NCTC unified sanction record (UNSC designations as applied in Qatar + domestic designations)
+QA_NCTC_URL = ("https://portal.moi.gov.qa/wps/portal/NCTC/sanctionlist/unifiedsanctionlist/!ut/p/z1/jY_BDoIwAEM_aXUbIMdByLa4iZgRcBeyk1mi6MH4_RL16qS3Jq9tSjwZiZ_DM57DI97mcFn8yeeTLimnilPT1lygY5V2lllImZHhDWTKNJLvsJeFq9C1VLn8qCiwIX5NHj8ksC6fAHy6fiD-MyGsBuUwbVMvDaVyqmbA9lB8gdTFfyP3a9-PiPoFJNS7hg!!/dz/d5/L3dDZyEvUUZRSS9ZTlEh/p0/IZ7_I9242H42LOC4A0Q3BITM3M0G85=CZ6_I9242H42LOC4A0Q3BITM3M0GG5=NJgetSanctionList=/?lang=en&name=&qid=&passport=&listType=")
 
 # User agent for downloads
 USER_AGENT = "Mozilla/5.0 (compatible; CorridorComply/1.0; +https://github.com/Zezoo123/CorridorComply)"
@@ -250,6 +254,33 @@ def download_eu_sanctions() -> Tuple[bool, Optional[Path]]:
         return False, None
 
 
+def download_qa_nctc() -> Tuple[bool, Optional[Path]]:
+    """Download Qatar's NCTC unified sanction record (JSON from the MOI portal)."""
+    output_dir = RAW_DIR / "qa_nctc"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / f"nctc_{datetime.now().strftime('%Y%m%d')}.json"
+    ok, _ = download_file(QA_NCTC_URL, output_path)
+    if not ok:
+        return False, None
+    try:
+        import json
+        data = json.loads(output_path.read_text(encoding="utf-8"))
+        n = len(data.get("content", [])) if isinstance(data, dict) else 0
+        if n < 100:
+            logger.error(f"NCTC download looks wrong ({n} records); keeping the previous file")
+            output_path.unlink(missing_ok=True)
+            return False, None
+        logger.info(f"NCTC unified record: {n} entries")
+        for old in output_dir.glob("nctc_*.json"):
+            if old != output_path:
+                old.unlink(missing_ok=True)
+        return True, output_path
+    except Exception as e:
+        logger.error(f"NCTC download is not valid JSON: {e}")
+        output_path.unlink(missing_ok=True)
+        return False, None
+
+
 def run_conversion_script(script_name: str) -> bool:
     """Run a conversion script."""
     script_path = SCRIPT_DIR / script_name
@@ -303,7 +334,7 @@ def update_sanctions_lists(force: bool = False) -> int:
     NORMALIZED_DIR.mkdir(parents=True, exist_ok=True)
     COMBINED_DIR.mkdir(parents=True, exist_ok=True)
     
-    results = {'un': False, 'ofac': False, 'uk': False, 'eu': False}
+    results = {'un': False, 'ofac': False, 'uk': False, 'eu': False, 'qa_nctc': False}
     
     # Download UN sanctions
     logger.info("\n" + "-"*70)
@@ -333,6 +364,13 @@ def update_sanctions_lists(force: bool = False) -> int:
     eu_success, eu_file = download_eu_sanctions()
     results['eu'] = eu_success
     
+    # Download Qatar NCTC unified record
+    logger.info("\n" + "-"*70)
+    logger.info("4b. Downloading Qatar NCTC unified sanction record")
+    logger.info("-"*70)
+    nctc_success, _ = download_qa_nctc()
+    results['qa_nctc'] = nctc_success
+
     # Run conversion scripts
     logger.info("\n" + "-"*70)
     logger.info("5. Converting Sanctions Lists")
@@ -364,6 +402,12 @@ def update_sanctions_lists(force: bool = False) -> int:
         logger.warning("Skipping EU conversion (no file available)")
         conversion_results['eu'] = False
     
+    if results['qa_nctc']:
+        conversion_results['qa_nctc'] = run_conversion_script("convert_qa_nctc_to_csv.py")
+    else:
+        logger.warning("Skipping Qatar NCTC conversion (download failed)")
+        conversion_results['qa_nctc'] = False
+
     # Combine all sanctions
     logger.info("\n" + "-"*70)
     logger.info("6. Combining Sanctions Lists")

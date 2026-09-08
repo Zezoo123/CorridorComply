@@ -13,7 +13,7 @@ from typing import Any, Dict, Iterable, List, Optional
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..db.models import Alert, ApiKey, Customer, ListVersion, Screening, Tenant
+from ..db.models import Alert, ApiKey, Customer, Decision, ListVersion, Screening, Tenant
 from .sanctions_loader import SanctionsLoader
 
 logger = logging.getLogger(__name__)
@@ -246,3 +246,44 @@ def customer_to_dict(c: Customer, last: Optional[Screening] = None) -> Dict[str,
                                "risk_level": last.risk_level, "list_version": last.list_version.label,
                                "created_at": last.created_at.isoformat()}
     return d
+
+
+# ---------------------------------------------------------------- decisions
+def save_decision(session: Session, tenant_slug: str, decision: Dict[str, Any], *, customer_data: Dict[str, Any],
+                  beneficiary_data: Optional[Dict[str, Any]] = None, screening: Optional[Screening] = None,
+                  customer: Optional[Customer] = None, request_id: Optional[str] = None) -> Decision:
+    tenant = get_or_create_tenant(session, tenant_slug)
+    row = Decision(
+        tenant_id=tenant.id, customer_id=customer.id if customer else None,
+        screening_id=screening.id if screening else None, request_id=request_id,
+        corridor=decision["corridor"], ruleset_version=decision["ruleset_version"],
+        ruleset_status=decision["ruleset_status"], outcome=decision["outcome"],
+        risk_score=int(decision["risk_score"]), reasons=decision["reasons"], actions=decision["actions"],
+        facts=decision["facts"], customer_data=_strip_images(customer_data), beneficiary_data=beneficiary_data or {},
+    )
+    session.add(row)
+    session.flush()
+    return row
+
+
+def _strip_images(d: Dict[str, Any]) -> Dict[str, Any]:
+    return {k: v for k, v in (d or {}).items() if not str(k).endswith("_base64")}
+
+
+def decisions_for(session: Session, tenant_slug: str, limit: int = 100, outcome: Optional[str] = None) -> List[Decision]:
+    tenant = get_or_create_tenant(session, tenant_slug)
+    q = select(Decision).where(Decision.tenant_id == tenant.id)
+    if outcome:
+        q = q.where(Decision.outcome == outcome)
+    return list(session.scalars(q.order_by(Decision.id.desc()).limit(limit)))
+
+
+def decision_to_dict(d: Decision) -> Dict[str, Any]:
+    return {
+        "id": d.id, "request_id": d.request_id, "corridor": d.corridor, "ruleset_version": d.ruleset_version,
+        "ruleset_status": d.ruleset_status, "outcome": d.outcome, "risk_score": d.risk_score, "reasons": d.reasons,
+        "actions": d.actions, "facts": d.facts, "customer": d.customer_data, "beneficiary": d.beneficiary_data,
+        "screening_id": d.screening_id, "customer_id": d.customer_id,
+        "list_version": d.screening.list_version.label if d.screening else None,
+        "created_at": d.created_at.isoformat(),
+    }

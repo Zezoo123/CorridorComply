@@ -110,7 +110,8 @@ pytest tests/test_sanctions_loader.py -v
 ### AML Core
 
 - **Sanctions Screening**
-  - Combined list from UN, OFAC (SDN), UK (OFSI consolidated list) and EU, refreshed by `scripts/update_sanctions.py` on a schedule
+  - Combined list from UN, OFAC (SDN), UK (OFSI consolidated list), EU and **Qatar's NCTC unified record** (domestic designations with QID and passport numbers), refreshed by `scripts/update_sanctions.py` on a schedule
+  - Exact identity-number matching (a QID or passport on a list is a definite hit) alongside names and aliases
   - Names **and listed aliases** are searched; transliteration variants (Mohammed / Muhammad / Mohamed) block together
   - Entity-type aware: screen a person against individuals, a company against entities, or a vessel
   - Date of birth and nationality compared with the list entry (exact / year / mismatch), and a mismatch lowers the score
@@ -125,6 +126,11 @@ pytest tests/test_sanctions_loader.py -v
   - Customers on file are re-screened after each list update; changes raise alerts (`new_hit`, `new_match`, `hit_cleared`) with an optional webhook
   - `/alerts` page and `GET /api/v1/alerts`; acknowledge with a reason
   - SQLite by default, Postgres via `DATABASE_URL`, migrations with Alembic
+
+- **Corridor decisions** (see `docs/corridor_rules.md`)
+  - `POST /api/v1/decision`: screen the customer, check identity-number formats (Qatar ID encodes birth year and nationality; CNIC, Aadhaar, NID, PhilSys), apply the corridor ruleset, return approve / review / reject with every reason and its regulatory basis
+  - Population-aware name variants (Filipino middle names and compound surnames, South Asian patronymics and single names) so listed people are not missed
+  - Rulesets are JSON validated by schema; `premium/corridor_rules/qa_ph_rules.json` is a **draft** awaiting compliance review
 
 - **API keys**: `python -m app.auth new-key <tenant>` stores a hashed key in the database; `API_KEYS="tenant:key,..."` or `API_KEYS_FILE=keys.json` also work. Without keys the API runs open for local development and warns at startup.
 

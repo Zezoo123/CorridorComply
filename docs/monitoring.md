@@ -13,6 +13,13 @@ By default the database is SQLite at `data/corridorcomply.db`. Set
 `DATABASE_URL=postgresql+psycopg://user:pass@host/db` for production and run
 `alembic upgrade head` (the Docker image does this on start).
 
+## Lists
+
+UN consolidated, OFAC SDN, UK OFSI consolidated, EU consolidated, and Qatar's
+NCTC unified record (UNSC designations as applied in Qatar plus domestic
+designations by Public Prosecutor order, with QID and passport numbers). The
+screener matches identity numbers exactly as well as names and aliases.
+
 ## Keeping the list fresh
 
 The API does not download lists itself any more (`SANCTIONS_AUTO_UPDATE_ENABLED`

@@ -46,6 +46,7 @@ class Entry:
     program: str
     list_type: str
     listed_on: str
+    id_numbers: str = ""
     keys: Set[str] = field(default_factory=set)
 
 
@@ -54,7 +55,7 @@ class Candidate:
     entry: Entry
     similarity: float
     matched_name: str
-    match_type: str              # "name" or "alias"
+    match_type: str              # "name", "alias" or "identifier"
     dob_agreement: str           # exact | year | mismatch | unknown
     nationality_agreement: str   # match | mismatch | unknown
 
@@ -69,6 +70,7 @@ class Candidate:
             "record_type": e.record_type,
             "program": e.program or e.list_type,
             "listed_on": e.listed_on,
+            "id_numbers": e.id_numbers or None,
             "similarity": round(self.similarity, 2),
             "aliases": e.aliases[:10],
             "dob": format_dates(e.dob_dates, e.dob_years) or None,
@@ -85,6 +87,7 @@ class ScreeningIndex:
         self.list_version = list_version
         self.entries: List[Entry] = []
         self._by_key: Dict[str, Set[int]] = {}
+        self._by_id: Dict[str, Set[int]] = {}   # normalized identity number -> entries
         for i, row in enumerate(df.itertuples(index=False)):
             r = row._asdict()
             name = str(r.get("name") or "")
@@ -106,7 +109,10 @@ class ScreeningIndex:
                 variants=variants, dob_dates=dates, dob_years=years, nationalities=nat,
                 nationality_codes=nationalities_to_iso2(nat), program=str(r.get("program") or ""),
                 list_type=str(r.get("list_type") or ""), listed_on=str(r.get("listed_on") or ""),
+                id_numbers=str(r.get("id_numbers") or ""),
             )
+            for idn in identifier_keys(entry.id_numbers):
+                self._by_id.setdefault(idn, set()).add(i)
             for v in variants:
                 entry.keys |= blocking_keys(v)
             for k in entry.keys:
@@ -116,6 +122,13 @@ class ScreeningIndex:
         logger.info(f"Screening index built: {len(self.entries)} entries, {len(self._by_key)} keys, {self.built_in:.2f}s")
 
     # ------------------------------------------------------------------ #
+    def by_identifier(self, id_numbers: List[str]) -> Set[int]:
+        hits: Set[int] = set()
+        for v in id_numbers or []:
+            for k in identifier_keys(v):
+                hits |= self._by_id.get(k, set())
+        return hits
+
     def candidates(self, query: str) -> Set[int]:
         keys = blocking_keys(query)
         if not keys:
@@ -141,14 +154,27 @@ class ScreeningIndex:
         entity_type: str = "person",
         threshold: int = SIMILARITY_THRESHOLD,
         limit: int = 25,
+        id_numbers: Optional[List[str]] = None,
     ) -> List[Candidate]:
         q = normalize(full_name)
-        if not q:
-            return []
         allowed = ENTITY_TYPES.get(entity_type, ENTITY_TYPES["person"])
         query_dob = parse_iso_date(dob)
         results: List[Candidate] = []
+        # Exact identity-number matches first: a QID or passport number on a list is a
+        # definite hit regardless of how the name was spelled.
+        id_hits = self.by_identifier(id_numbers or [])
+        for i in id_hits:
+            e = self.entries[i]
+            results.append(Candidate(
+                entry=e, similarity=100.0, matched_name=e.id_numbers, match_type="identifier",
+                dob_agreement=dob_agreement(query_dob, e.dob_dates, e.dob_years),
+                nationality_agreement=nationality_agreement(nationality, e.nationality_codes),
+            ))
+        if not q:
+            return results[:limit]
         for i in self.candidates(full_name):
+            if i in id_hits:
+                continue
             e = self.entries[i]
             if allowed is not None and e.record_type not in allowed:
                 continue
@@ -167,8 +193,21 @@ class ScreeningIndex:
                 dob_agreement=dob_agreement(query_dob, e.dob_dates, e.dob_years),
                 nationality_agreement=nationality_agreement(nationality, e.nationality_codes),
             ))
-        results.sort(key=lambda c: (-c.similarity, c.dob_agreement != "exact", c.entry.name))
+        results.sort(key=lambda c: (c.match_type != "identifier", -c.similarity, c.dob_agreement != "exact", c.entry.name))
         return results[:limit]
+
+
+def identifier_keys(value: str) -> Set[str]:
+    """Normalized forms of the identity numbers in a list field such as
+    'QID: 28560812345; Passport: A1234567' or a single customer-supplied number.
+    Letters and digits only, uppercase; numbers shorter than 5 are ignored."""
+    keys: Set[str] = set()
+    for part in split_multi(str(value or ""), seps=(";", ",")):
+        raw = part.split(":", 1)[1] if ":" in part else part
+        k = "".join(ch for ch in raw.upper() if ch.isalnum())
+        if len(k) >= 5:
+            keys.add(k)
+    return keys
 
 
 # ---------------------------------------------------------------------- #
