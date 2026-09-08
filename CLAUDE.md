@@ -52,6 +52,14 @@ FastAPI routers:
 - `sanctions_loader.py` - Loads/caches combined sanctions CSV, auto-finds latest file
 - `face_match.py` - DeepFace-based face comparison
 
+### Corridor engine (`app/corridor/`)
+- `schema.py` - Pydantic contract for a ruleset (documents, required fields, screening policy, rules with `when` conditions over `FIELDS`, reporting). `status` must be `draft` until `reviewed_by` is set.
+- `engine.py` - `RulesetRegistry` loads `premium/corridor_rules/*.json` (or `CORRIDOR_RULES_DIR`); `decide()` builds facts and fires every matching rule; outcome is the most severe.
+- `identifiers.py` - ID-number validators: `qatar_id` (birth year + nationality), `pk_cnic`, `in_aadhaar` (Verhoeff), `bd_nid`, `ph_philsys`, passports.
+- `names.py` - Population-aware name variants and flags; used by `AMLService.screen_sync` when `use_variants` is on.
+- Routes in `app/routes/corridor.py`: `/api/v1/decision`, `/api/v1/decisions`, `/api/v1/corridors`. Decisions persist in the `decisions` table (migration 0002).
+- Tests use `tests/data/corridor_rules/` via `CORRIDOR_RULES_DIR` and `reset_registry()`.
+
 ### Database (`app/db/`)
 SQLAlchemy 2 models in `models.py`; lazy engine in `database.py` (`DATABASE_URL`, default SQLite under `data/`); Alembic migrations in `migrations/` (`alembic upgrade head`). Tests get a fresh SQLite file via the `db` fixture. `app/monitoring.py` is the re-screen CLI for cron.
 
@@ -94,6 +102,7 @@ Environment variables (see `app/config.py`):
 - `SANCTIONS_AUTO_UPDATE_ENABLED` - Auto-update on startup (default: false; use the scheduler)
 - `DATABASE_URL` - SQLAlchemy URL (default SQLite in `data/`)
 - `UI_TENANT` - Tenant the web UI acts for (default `default`)
+- `CORRIDOR_RULES_DIR` - Directory of corridor ruleset JSON files (default `premium/corridor_rules`)
 - `ENVIRONMENT` - development/production
 - `DEBUG` - Enable debug mode
 - `CORS_ORIGINS` - Comma-separated allowed origins (unset = no CORS headers)

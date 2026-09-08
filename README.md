@@ -126,6 +126,11 @@ pytest tests/test_sanctions_loader.py -v
   - `/alerts` page and `GET /api/v1/alerts`; acknowledge with a reason
   - SQLite by default, Postgres via `DATABASE_URL`, migrations with Alembic
 
+- **Corridor decisions** (see `docs/corridor_rules.md`)
+  - `POST /api/v1/decision`: screen the customer, check identity-number formats (Qatar ID encodes birth year and nationality; CNIC, Aadhaar, NID, PhilSys), apply the corridor ruleset, return approve / review / reject with every reason and its regulatory basis
+  - Population-aware name variants (Filipino middle names and compound surnames, South Asian patronymics and single names) so listed people are not missed
+  - Rulesets are JSON validated by schema; `premium/corridor_rules/qa_ph_rules.json` is a **draft** awaiting compliance review
+
 - **API keys**: `python -m app.auth new-key <tenant>` stores a hashed key in the database; `API_KEYS="tenant:key,..."` or `API_KEYS_FILE=keys.json` also work. Without keys the API runs open for local development and warns at startup.
 
 - Basic country risk scoring
