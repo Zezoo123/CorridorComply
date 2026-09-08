@@ -1,4 +1,1 @@
-# This file makes the app directory a Python package
-from .main import app
-
-__all__ = ['app']
+# CorridorComply application package. Import the API with `from app.main import app`.
