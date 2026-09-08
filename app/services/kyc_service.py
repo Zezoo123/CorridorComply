@@ -146,6 +146,11 @@ class KYCService:
                 face_match_result["details"].append(f"Face match failed (score: {face_match_result['score']:.2f})")
             
             logger.info(f"Face matching result: matched={face_match_result['matched']}, score={face_match_result['score']:.2f}")
+
+            # Liveness (vendor-backed; NullProvider reports "not checked")
+            from app.services.liveness import get_provider
+            liveness = get_provider().check(selfie_image)
+            logger.info(f"Liveness: {liveness.to_dict()}")
             
             # Risk score comes from the shared RiskEngine so KYC, AML and the
             # combined endpoint can never disagree about thresholds.
@@ -161,6 +166,7 @@ class KYCService:
                 ocr_quality=document_validation.get("ocr_confidence"),
                 document_expired=bool(expiry_validation.get("is_expired")),
                 mrz_mismatches=(data_comparison or {}).get("mismatches") if data_comparison else None,
+                liveness=liveness.live if liveness.checked else None,
             )
             risk_score = risk["risk_score"]
             risk_level = risk["risk_level"].value
@@ -184,6 +190,7 @@ class KYCService:
                     "expiry_validation": expiry_validation
                 },
                 "data_comparison": data_comparison,
+                "liveness": liveness.to_dict(),
                 "face_match_details": {
                     "matched": face_match_result["matched"],
                     "score": face_match_result["score"],

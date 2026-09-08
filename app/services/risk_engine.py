@@ -206,6 +206,7 @@ class RiskEngine:
         missing_fields: List[str] = None,
         data_quality_issues: List[str] = None,
         mrz_mismatches: List[Dict[str, Any]] = None,
+        liveness: Optional[bool] = None,
     ) -> Dict[str, Any]:
         """
         Calculate comprehensive KYC risk score
@@ -299,6 +300,15 @@ class RiskEngine:
                 "type": RiskFactorType.KYC_VALIDATION.value,
                 "severity": "medium" if len(missing_fields) >= 2 else "low",
                 "description": f"Missing required fields: {', '.join(missing_fields)}"
+            })
+        
+        # Liveness (None = not checked; only a failed check adds risk)
+        if liveness is False:
+            risk_score += 35
+            risk_factors.append({
+                "type": RiskFactorType.KYC_FACE_MATCH.value,
+                "severity": "high",
+                "description": "Liveness check failed: the selfie may be a photo or a screen",
             })
         
         # Submitted data disagrees with the machine-readable zone
