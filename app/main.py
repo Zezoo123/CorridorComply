@@ -1,19 +1,20 @@
 # In app/main.py
 import json
 import logging
-from fastapi import FastAPI, Request, Response
+from fastapi import Depends, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from .core.logger import setup_logging
 from .middleware.logging_middleware import log_requests_middleware
+from .auth import require_api_key, load_keys
 
 # Set up logging first
 setup_logging()
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="KYC Verification API",
-    description="API for KYC verification with document and selfie validation",
-    version="1.0.0"
+    title="CorridorComply API",
+    description="Sanctions screening, KYC document verification and risk scoring for cross-border corridors.",
+    version="0.2.0"
 )
 
 # Add CORS middleware (origins come from CORS_ORIGINS; no wildcard with credentials)
@@ -33,10 +34,13 @@ async def logging_middleware(request: Request, call_next):
     return await log_requests_middleware(request, call_next)
 
 # Import and include routers
-from .routes import kyc, aml, risk  # noqa: E402
-app.include_router(kyc.router, prefix="/api/v1/kyc", tags=["KYC"])
-app.include_router(aml.router, prefix="/api/v1/aml", tags=["AML"])
-app.include_router(risk.router, prefix="/api/v1/risk", tags=["Risk"])
+from .routes import kyc, aml, risk, screen_ui  # noqa: E402
+protected = [Depends(require_api_key)]
+app.include_router(kyc.router, prefix="/api/v1/kyc", tags=["KYC"], dependencies=protected)
+app.include_router(aml.router, prefix="/api/v1/aml", tags=["AML"], dependencies=protected)
+app.include_router(risk.router, prefix="/api/v1/risk", tags=["Risk"], dependencies=protected)
+app.include_router(screen_ui.router, tags=["Screening UI"])
+load_keys()  # warn at startup if the API is open
 
 # Startup event: Check and update sanctions lists if needed
 @app.on_event("startup")
@@ -107,7 +111,7 @@ async def startup_sanctions_update():
 async def root():
     """Root endpoint that returns a welcome message"""
     logger.info("Root endpoint accessed")
-    return {"message": "KYC Verification API is running"}
+    return {"message": "CorridorComply API is running", "docs": "/docs", "screening_ui": "/screen"}
 
 @app.get("/health")
 async def health_check():

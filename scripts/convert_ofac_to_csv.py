@@ -15,6 +15,8 @@ from typing import Dict, List, Optional, Set, Tuple, Any
 from datetime import datetime, date
 from collections import defaultdict
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -209,6 +211,32 @@ ALTERNATIVE_NAMES = {
 }
 
 
+_DOB_FIELD = re.compile(r"\bDOB\s+([^;]+)")
+
+
+def _dob_fragments(remarks: str):
+    """Every 'DOB ...' fragment in an OFAC remarks string."""
+    return [m.strip() for m in _DOB_FIELD.findall(str(remarks or ""))]
+
+
+def _dob_dates_from_remarks(remarks: str) -> str:
+    from app.core.dates import parse_dob_text
+    dates = set()
+    for frag in _dob_fragments(remarks):
+        d, _ = parse_dob_text(frag)
+        dates |= d
+    return "; ".join(sorted(x.isoformat() for x in dates))
+
+
+def _dob_years_from_remarks(remarks: str) -> str:
+    from app.core.dates import parse_dob_text
+    years = set()
+    for frag in _dob_fragments(remarks):
+        _, y = parse_dob_text(frag)
+        years |= y
+    return "; ".join(str(y) for y in sorted(years))
+
+
 def split_name_parts(name: str) -> Dict[str, str]:
     """
     Split a name into first, second, third, fourth parts
@@ -301,7 +329,7 @@ def load_sdn_data(sdn_path: Path) -> pd.DataFrame:
         rows = list(reader)
         
         # Create DataFrame with proper column names (12 columns)
-        df = pd.DataFrame(rows, columns=['ent_num', 'sdn_name', 'sdn_type', 'program', 'title', 'call_sign', 'vess_type', 'vess_flag', 'vess_owner', 'remarks', 'col11', 'col12'])
+        df = pd.DataFrame(rows, columns=['ent_num', 'sdn_name', 'sdn_type', 'program', 'title', 'call_sign', 'vess_type', 'tonnage', 'grt', 'vess_flag', 'vess_owner', 'remarks'])
         
         logger.info(f"Loaded {len(df)} rows from SDN file")
         
@@ -623,8 +651,8 @@ def create_normalized_ofac_data(sdn_df: pd.DataFrame, alt_df: pd.DataFrame, add_
         'gender': '',      # Not typically provided by OFAC
         'pob_cities': '',  # Not typically provided by OFAC
         'pob_countries': '',  # Not typically provided by OFAC
-        'dob_dates': '',   # Not typically provided by OFAC
-        'dob_years': ''    # Not typically provided by OFAC
+        'dob_dates': result_df.get('remarks', '').fillna('').map(_dob_dates_from_remarks),
+        'dob_years': result_df.get('remarks', '').fillna('').map(_dob_years_from_remarks),
     }
     
     normalized_df = pd.DataFrame(data)

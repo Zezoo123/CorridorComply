@@ -34,14 +34,18 @@ python scripts/update_sanctions.py
 ## Architecture
 
 ### API Layer (`app/routes/`)
-FastAPI routers for three main endpoints:
+FastAPI routers:
 - `/api/v1/kyc/verify` - Document OCR + face matching verification
-- `/api/v1/aml/screen` - Sanctions/PEP screening against consolidated lists
-- `/api/v1/risk` - Combined risk scoring
+- `/api/v1/aml/screen` and `/api/v1/aml/screen/batch` - Sanctions screening against consolidated lists
+- `/api/v1/risk/combined` - Combined risk scoring
+- `/screen` (`screen_ui.py`) - Jinja2 upload UI for screening a customer file and downloading a CSV report
+
+`/api/v1/*` routes require `X-API-Key` when keys are configured (`app/auth.py`, `API_KEYS` / `API_KEYS_FILE`); the tenant lands in `request.state.tenant` and in every audit event.
 
 ### Services (`app/services/`)
 - `kyc_service.py` - Orchestrates document validation and face matching
-- `aml_service.py` - Sanctions screening with fuzzy matching
+- `aml_service.py` - Sanctions screening (thin wrapper over `screening.py`)
+- `screening.py` - In-memory screening index: names + aliases, blocking keys, entity-type filter, DOB/nationality agreement, `list_version`
 - `risk_engine.py` - Unified risk scoring (AML weighted 60%, KYC 40%)
 - `sanctions_loader.py` - Loads/caches combined sanctions CSV, auto-finds latest file
 - `face_match.py` - DeepFace-based face comparison
@@ -49,19 +53,24 @@ FastAPI routers for three main endpoints:
 ### Core (`app/core/`)
 - `ocr.py` - Passport MRZ extraction using EasyOCR and mrz library
 - `id_ocr.py` - ID card OCR with country-specific rules
-- `fuzzy_match.py` - RapidFuzz-based name matching (token_sort_ratio)
+- `fuzzy_match.py` - RapidFuzz-based name matching (token_sort_ratio), used by MRZ comparison
+- `names.py` - Name normalization (unidecode, titles, particles) and blocking keys (consonant skeleton)
+- `dates.py` - DOB parsing for list fields and requests; agreement levels exact/year/mismatch/unknown
+- `countries_match.py` - List country names to ISO alpha-2
 - `mrz_detect.py` - MRZ region detection from passport images
 - `logger.py` - Audit logging to `logs/audit/` as JSON
 
 ### Sanctions Data Pipeline
 Raw data in `app/data/sanctions/raw/{un,ofac,uk,eu}/` is converted by `scripts/convert_*.py` to normalized CSVs in `normalized/`, then combined into `combined/combined_sanctions_*.csv` (the combiner keeps the newest three). The loader picks the latest combined file by modification time and caches it in memory. `SANCTIONS_DATA_DIR` overrides the data location; tests use a temp dir via the `sanctions_data_dir` fixture.
 
+Converters: OFAC dates of birth are parsed from the SDN `remarks` column; the EU file carries birth dates on separate rows of an entity group; the UK search-service export has no DOB or nationality (the OFSI ConList.csv does, see the tracker).
+
 Heavy ML imports (EasyOCR, DeepFace, OpenCV) are lazy, inside `KYCService.process_kyc`, so the API and screening endpoints start without them.
 
 ## Key Patterns
 
 ### Risk Scoring
-Risk scores are 0-100. Thresholds: HIGH ≥70, MEDIUM ≥40, LOW <40. The `RiskEngine` class in `risk_engine.py` centralizes all risk calculations.
+Risk scores are 0-100. Thresholds: HIGH ≥70, MEDIUM ≥40, LOW <40. `RiskEngine` in `risk_engine.py` is the only place scores are computed: `KYCService` and the combined route call it rather than scoring inline. An AML match whose DOB disagrees with every candidate is demoted.
 
 ### Request IDs
 All endpoints accept `X-Request-ID` header for tracing. If not provided, generates `req_{uuid8}` format.
@@ -81,6 +90,7 @@ Environment variables (see `app/config.py`):
 - `ENVIRONMENT` - development/production
 - `DEBUG` - Enable debug mode
 - `CORS_ORIGINS` - Comma-separated allowed origins (unset = no CORS headers)
+- `API_KEYS` / `API_KEYS_FILE` - API keys as `tenant:key,...` or a JSON file `{tenant: key}`; unset = open API (dev only)
 - `SANCTIONS_DATA_DIR` - Location of raw/normalized/combined sanctions data
 
 ## Testing Notes

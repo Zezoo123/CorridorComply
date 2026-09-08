@@ -1,9 +1,9 @@
 import uuid
 from fastapi import APIRouter, Request, status, HTTPException
-from starlette.datastructures import Headers
 import logging
-from datetime import datetime
-from ..models.aml import AMLScreenRequest, AMLScreenResponse, MatchResult
+from ..models.aml import (
+    AMLScreenRequest, AMLScreenResponse, AMLBatchRequest, AMLBatchResponse, AMLBatchResult,
+)
 from ..services.aml_service import AMLService
 from ..core.logger import log_audit_event
 
@@ -11,118 +11,89 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+
+def _request_id(request: Request) -> str:
+    return getattr(request.state, "request_id", None) or request.headers.get("X-Request-ID") or f"req_{uuid.uuid4().hex[:8]}"
+
+
 @router.post("/screen", response_model=AMLScreenResponse)
-async def screen_aml(
-    request: Request,
-    payload: AMLScreenRequest
-):
+async def screen_aml(request: Request, payload: AMLScreenRequest):
     """
-    Screen an individual against AML/CFT databases.
-    
-    This endpoint checks if the provided individual matches any entries in
-    sanctions lists, PEP databases, or other watchlists.
+    Screen a person, company or vessel against the combined sanctions lists
+    (UN, OFAC, UK, EU). Names and listed aliases are both searched; DOB and
+    nationality, when supplied, are compared with the list entry.
     """
-    request_id = getattr(request.state, "request_id", None) or request.headers.get("X-Request-ID") or f"req_{uuid.uuid4().hex[:8]}"
-    
+    request_id = _request_id(request)
     try:
-        # Log the start of AML screening
-        logger.info(
-            "Starting AML screening",
-            extra={
-                "request_id": request_id,
-                "full_name": payload.full_name,
-                "nationality": payload.nationality,
-                "dob": payload.dob
-            }
-        )
-        
-        # Perform the AML screening (note: await is required for async functions)
         result = await AMLService.screen(
             request_id=request_id,
             full_name=payload.full_name,
             dob=payload.dob,
-            nationality=payload.nationality
+            nationality=payload.nationality,
+            entity_type=payload.entity_type,
         )
-        
-        # Create the response
         response = AMLScreenResponse(**result)
-        
-        # Log successful screening
+
         logger.info(
-            "AML screening completed successfully",
+            "AML screening completed",
             extra={
                 "request_id": request_id,
                 "sanctions_match": response.sanctions_match,
-                "pep_match": response.pep_match,
                 "risk_score": response.risk_score,
-                "risk_level": response.risk_level.value
-            }
+                "risk_level": response.risk_level.value,
+                "match_count": len(response.matches),
+            },
         )
-        
-        # Create a new request with the X-Request-ID header set
-        headers = dict(request.headers)
-        headers['X-Request-ID'] = request_id
-        request_with_id = Request(scope=request.scope, receive=request.receive)
-        request_with_id._headers = Headers(headers)
-        
-        # Log audit event
         log_audit_event(
             event_type="aml_screening",
             data={
                 "status": "success",
                 "full_name": payload.full_name,
                 "nationality": payload.nationality,
+                "entity_type": payload.entity_type,
                 "sanctions_match": response.sanctions_match,
                 "pep_match": response.pep_match,
                 "risk_score": response.risk_score,
                 "risk_level": response.risk_level.value,
                 "match_count": len(response.matches),
-                "details": response.details
+                "list_version": response.list_version,
+                "details": response.details,
             },
-            request=request_with_id,
-            request_payload=payload
+            request=request,
+            request_payload=payload,
         )
-        
         return response
-        
+
     except Exception as e:
-        # Log the error
-        logger.error(
-            f"AML screening failed: {str(e)}",
-            extra={
-                "request_id": request_id,
-                "error": str(e),
-                "full_name": payload.full_name,
-                "nationality": payload.nationality,
-                "dob": payload.dob
-            },
-            exc_info=True
-        )
-        
-        # Create a new request with the X-Request-ID header set
-        headers = dict(request.headers)
-        headers['X-Request-ID'] = request_id
-        request_with_id = Request(scope=request.scope, receive=request.receive)
-        request_with_id._headers = Headers(headers)
-        
-        # Log audit event for failure
+        logger.error(f"AML screening failed: {str(e)}", extra={"request_id": request_id}, exc_info=True)
         log_audit_event(
             event_type="aml_screening",
-            data={
-                "status": "error",
-                "error": str(e),
-                "full_name": payload.full_name,
-                "nationality": payload.nationality
-            },
-            request=request_with_id,
-            request_payload=payload
+            data={"status": "error", "error": str(e), "full_name": payload.full_name, "nationality": payload.nationality},
+            request=request,
+            request_payload=payload,
         )
-        
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={
-                "error": "AML screening failed",
-                "request_id": request_id,
-                "details": str(e)
-            }
+            detail={"error": "AML screening failed", "request_id": request_id, "details": str(e)},
         )
+
+
+@router.post("/screen/batch", response_model=AMLBatchResponse)
+async def screen_batch(request: Request, payload: AMLBatchRequest):
+    """Screen up to 5,000 records in one call. Each result carries the caller's reference."""
+    request_id = _request_id(request)
+    results = []
+    list_version = None
+    for item in payload.items:
+        r = AMLService.screen_sync(item.full_name, dob=item.dob, nationality=item.nationality,
+                                   entity_type=item.entity_type, request_id=request_id)
+        list_version = r["list_version"]
+        results.append(AMLBatchResult(reference=item.reference, full_name=item.full_name, **r))
+    with_matches = sum(1 for r in results if r.sanctions_match)
+    log_audit_event(
+        event_type="aml_batch_screening",
+        data={"status": "success", "total": len(results), "with_matches": with_matches, "list_version": list_version},
+        request=request,
+    )
+    return AMLBatchResponse(request_id=request_id, list_version=list_version, total=len(results),
+                            with_matches=with_matches, results=results)

@@ -421,8 +421,9 @@ def create_normalized_eu_data(eu_df: pd.DataFrame) -> pd.DataFrame:
         first_row = group.iloc[0]
         
         # Determine record type
+        _subject = str(first_row.get('Entity_SubjectType', '') or '').strip()
         record_type = subject_type_map.get(
-            first_row.get('Entity_SubjectType', '').strip().lower(), 
+            _subject.upper() if len(_subject) == 1 else _subject.lower(),
             'entity'  # Default to 'entity' if type not found
         )
         
@@ -489,14 +490,24 @@ def create_normalized_eu_data(eu_df: pd.DataFrame) -> pd.DataFrame:
             nat = extract_nationalities(row)
             nationalities.update(nat)
         
-        # Extract date of birth information
-        dob = ''
-        if pd.notna(first_row.get('BirthDate_BirthDate')):
-            dob = parse_date(first_row['BirthDate_BirthDate'])
-        elif pd.notna(first_row.get('BirthDate_Year')):
-            year = str(first_row['BirthDate_Year']).strip()
+        # Extract date of birth information. The EU file puts birth dates on
+        # their own rows within the entity group (never on the first row).
+        dob_date_set = set()
+        dob_year_set = set()
+        for _, row in group.iterrows():
+            full = parse_date(row.get('BirthDate_BirthDate'))
+            if full:
+                dob_date_set.add(full)
+                dob_year_set.add(full[:4])
+            year = str(row.get('BirthDate_Year') or '').strip()
             if year.isdigit() and len(year) == 4:
-                dob = f"{year}-01-01"  # Default to Jan 1 if only year is known
+                dob_year_set.add(year)
+            for col in ('BirthDate_YearRangeFrom', 'BirthDate_YearRangeTo'):
+                y = str(row.get(col) or '').strip()
+                if y.isdigit() and len(y) == 4:
+                    dob_year_set.add(y)
+        dob = '; '.join(sorted(dob_date_set))
+        dob_years_str = '; '.join(sorted(dob_year_set))
         
         # Extract place of birth
         pob_cities = set()
@@ -535,8 +546,8 @@ def create_normalized_eu_data(eu_df: pd.DataFrame) -> pd.DataFrame:
             'nationalities': '; '.join(sorted(nationalities)) if nationalities else '',
             'pob_cities': '; '.join(sorted(pob_cities)) if pob_cities else '',
             'pob_countries': '; '.join(sorted(pob_countries)) if pob_countries else '',
-            'dob_dates': dob if dob else '',
-            'dob_years': str(first_row.get('BirthDate_Year', '')).strip() if pd.notna(first_row.get('BirthDate_Year')) else '',
+            'dob_dates': dob,
+            'dob_years': dob_years_str,
             'un_list_type': clean_name(first_row.get('Entity_Remark', '')),
             'list_type': 'EU Sanctions List',
             'program': program,

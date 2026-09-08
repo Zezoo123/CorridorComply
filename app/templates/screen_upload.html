@@ -1,0 +1,24 @@
+{% extends "_base.html" %}
+{% block content %}
+<h1>Screen a customer file</h1>
+<p class="sub">Upload a CSV or XLSX with one customer per row. A column called <code>name</code> (or <code>full name</code>, <code>customer</code>, <code>company</code>) is required. <code>date of birth</code>, <code>nationality</code>, <code>type</code> (person/entity/vessel) and an <code>id</code> column are used when present.</p>
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+<div class="card">
+<form method="post" action="/screen" enctype="multipart/form-data">
+  <label for="file">Customer file (.csv or .xlsx, up to 20,000 rows)</label>
+  <input id="file" type="file" name="file" accept=".csv,.xlsx,.xlsm,text/csv" required>
+  <label for="default_type">If the file has no type column, treat every row as</label>
+  <select id="default_type" name="default_type">
+    <option value="person">Person</option>
+    <option value="entity">Company / organisation</option>
+    <option value="any">Screen against everything</option>
+  </select>
+  <div style="margin-top:16px" class="row">
+    <button type="submit">Screen file</button>
+    <a class="btn secondary" href="/screen/sample/customers.csv">Download a sample file</a>
+  </div>
+</form>
+</div>
+<h2>What you get</h2>
+<p class="sub">Every row scored against the current combined list. Hits show which list, which name or alias matched, how close, and whether date of birth and nationality agree. Download the whole report as CSV to compare with what your current tool found.</p>
+{% endblock %}

@@ -1,0 +1,40 @@
+{% extends "_base.html" %}
+{% block title %}Screening report · {{ job.filename }}{% endblock %}
+{% block content %}
+<h1>Screening report</h1>
+<p class="meta">{{ job.filename }} · screened {{ job.total }} rows in {{ job.elapsed }} s · list version <code>{{ job.list_version }}</code> · report id <code>{{ job.id }}</code></p>
+<div class="stats">
+  <div class="stat"><b>{{ job.total }}</b><span>Rows screened</span></div>
+  <div class="stat {% if job.hits %}warn{% else %}ok{% endif %}"><b>{{ job.hits }}</b><span>Rows with a hit</span></div>
+  <div class="stat {% if job.high %}crit{% else %}ok{% endif %}"><b>{{ job.high }}</b><span>High-confidence hits</span></div>
+  <div class="stat ok"><b>{{ job.total - job.hits }}</b><span>Clear</span></div>
+</div>
+<div class="row" style="margin:0 0 16px">
+  <a class="btn" href="/screen/{{ job.id }}/report.csv">Download report (CSV)</a>
+  <a class="btn secondary" href="/screen">Screen another file</a>
+</div>
+<div class="tablewrap">
+<table>
+<thead><tr><th>#</th><th>Reference</th><th>Name</th><th>DOB</th><th>Nat.</th><th>Result</th><th>Best match</th><th>Matched on</th><th>Score</th><th>DOB</th><th>Nationality</th><th>List</th></tr></thead>
+<tbody>
+{% for r in job.results %}
+<tr>
+  <td class="num">{{ r.row }}</td>
+  <td>{{ r.reference }}</td>
+  <td><strong>{{ r.name }}</strong>{% if r.entity_type != 'person' %} <span class="pill info">{{ r.entity_type }}</span>{% endif %}</td>
+  <td class="num">{{ r.dob }}</td>
+  <td>{{ r.nationality }}</td>
+  <td>{% if r.match %}<span class="pill {{ r.risk_level }}">{{ r.risk_level }} · {{ r.risk_score }}</span>{% else %}<span class="pill low">clear</span>{% endif %}</td>
+  {% if r.matches %}{% set m = r.matches[0] %}
+  <td>{{ m.sanctioned_name }}{% if r.matches|length > 1 %} <span class="muted">+{{ r.matches|length - 1 }} more</span>{% endif %}
+    {% if r.matches|length > 1 %}<details><summary>show all</summary><ul style="padding-left:16px;margin:6px 0 0">{% for o in r.matches[1:] %}<li>{{ o.sanctioned_name }} <span class="muted">({{ o.source }}, {{ o.similarity }}, via {{ o.matched_name }})</span></li>{% endfor %}</ul></details>{% endif %}</td>
+  <td>{{ m.matched_name }}{% if m.match_type == 'alias' %} <span class="pill info">alias</span>{% endif %}</td>
+  <td class="num">{{ m.similarity }} <span class="muted">{{ m.confidence }}</span></td>
+  <td>{% if m.dob_agreement == 'exact' %}<span class="pill high">exact</span>{% elif m.dob_agreement == 'year' %}<span class="pill medium">year</span>{% elif m.dob_agreement == 'mismatch' %}<span class="pill low">differs</span>{% else %}<span class="muted">n/a</span>{% endif %}{% if m.dob %}<div class="muted">{{ m.dob|join(', ') }}</div>{% endif %}</td>
+  <td>{% if m.country_match %}<span class="pill high">match</span>{% elif m.country_match == False %}<span class="pill low">differs</span>{% else %}<span class="muted">n/a</span>{% endif %}{% if m.country %}<div class="muted">{{ m.country }}</div>{% endif %}</td>
+  <td>{{ m.source }}<div class="muted">{{ m.program }}</div></td>
+  {% else %}<td colspan="6" class="muted">no similar name on any list</td>{% endif %}
+</tr>
+{% endfor %}
+</tbody></table></div>
+{% endblock %}

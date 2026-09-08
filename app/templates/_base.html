@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}CorridorComply Screening{% endblock %}</title>
+<style>
+:root{--bg:#F4F6F8;--surface:#fff;--ink:#16212E;--ink2:#4A5666;--ink3:#7A8594;--line:#D5DCE4;--accent:#0F766E;--accent-soft:#D9F0EC;--warn:#B45309;--warn-soft:#FBEBD5;--crit:#B42318;--crit-soft:#FADFDC;--ok:#1F7A3E;--ok-soft:#DCF1E3}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 60px}
+header.top{display:flex;justify-content:space-between;align-items:baseline;gap:16px;margin-bottom:24px;border-bottom:1px solid var(--line);padding-bottom:12px}
+header.top .brand{font-weight:700;letter-spacing:-.01em;font-size:18px;text-decoration:none;color:var(--ink)}
+header.top .brand span{color:var(--accent)}
+header.top nav a{color:var(--ink2);text-decoration:none;margin-left:16px;font-size:14px}
+h1{font-size:26px;letter-spacing:-.015em;margin:0 0 6px}h2{font-size:18px;margin:24px 0 8px}
+p.sub{color:var(--ink2);margin:0 0 18px;max-width:70ch}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:18px 20px;margin:0 0 16px}
+label{display:block;font-size:13px;color:var(--ink2);margin:10px 0 4px}
+input[type=file],select,input[type=text]{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:4px;background:#fff;width:100%;max-width:420px}
+button,.btn{display:inline-block;font:inherit;font-weight:600;background:var(--accent);color:#fff;border:0;border-radius:4px;padding:10px 16px;cursor:pointer;text-decoration:none}
+.btn.secondary{background:var(--surface);color:var(--accent);border:1px solid var(--accent)}
+.error{background:var(--crit-soft);color:var(--crit);padding:10px 14px;border-radius:4px;margin:0 0 14px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:0 0 18px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:12px 14px}
+.stat b{display:block;font-size:26px;font-variant-numeric:tabular-nums;letter-spacing:-.01em}.stat span{font-size:12.5px;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em}
+.stat.crit b{color:var(--crit)}.stat.warn b{color:var(--warn)}.stat.ok b{color:var(--ok)}
+.tablewrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:6px}
+table{border-collapse:collapse;width:100%;font-size:14px}th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);background:#EAEEF2;font-weight:500;white-space:nowrap}
+tr:last-child td{border-bottom:0}td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.pill{display:inline-block;font-size:11px;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.pill.high{background:var(--crit-soft);color:var(--crit)}.pill.medium{background:var(--warn-soft);color:var(--warn)}.pill.low{background:var(--ok-soft);color:var(--ok)}.pill.info{background:var(--accent-soft);color:var(--accent)}
+.muted{color:var(--ink3);font-size:13px}code{background:#EAEEF2;padding:1px 5px;border-radius:3px;font-size:.9em}
+details summary{cursor:pointer;color:var(--accent)}
+.meta{font-size:13px;color:var(--ink3);margin:6px 0 16px}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top">
+  <a class="brand" href="/screen">Corridor<span>Comply</span> · Screening</a>
+  <nav><a href="/screen">Upload</a><a href="/screen/sample/customers.csv">Sample file</a><a href="/docs">API docs</a></nav>
+</header>
+{% block content %}{% endblock %}
+<p class="muted" style="margin-top:32px">Lists: UN consolidated, OFAC SDN, UK sanctions, EU consolidated. Names and listed aliases are both searched. Nothing you upload leaves this server. Results are kept in memory until the server restarts.</p>
+</div>
+</body>
+</html>

@@ -110,29 +110,20 @@ pytest tests/test_sanctions_loader.py -v
 ### AML Core
 
 - **Sanctions Screening**
-  - Combined sanctions list from multiple sources (UN, EU, UK)
-  - Automatic updates with latest sanctions data
-  - Fuzzy name matching with configurable thresholds
-  - In-memory caching for better performance
-  - Support for custom sanctions lists
-  
-  Example usage:
-  ```python
-  from app.services.sanctions_loader import load_sanctions, SanctionsLoader
-  
-  # Load the latest sanctions data
-  df = load_sanctions()  # Uses cached version if available
-  
-  # Or load a specific file
-  # df = load_sanctions("path/to/sanctions.csv")
-  
-  # Clear the cache if needed
-  SanctionsLoader.clear_cache()
-  ```
+  - Combined list from UN, OFAC (SDN), UK and EU, refreshed by `scripts/update_sanctions.py`
+  - Names **and listed aliases** are searched; transliteration variants (Mohammed / Muhammad / Mohamed) block together
+  - Entity-type aware: screen a person against individuals, a company against entities, or a vessel
+  - Date of birth and nationality compared with the list entry (exact / year / mismatch), and a mismatch lowers the score
+  - In-memory index: about 1 ms per screen on 30k entries
+  - Every response carries the `list_version` it was screened against
+  - `POST /api/v1/aml/screen` for one record, `POST /api/v1/aml/screen/batch` for up to 5,000
 
-- Basic PEP fuzzy matching
+- **Screening web UI** at `/screen`: upload a CSV or XLSX of customers, review hits, download the report. Built for shadow runs on the customer's own machine; nothing leaves the server.
+
+- **API keys**: set `API_KEYS="tenant:key,..."` or `API_KEYS_FILE=keys.json`. Generate one with `python -m app.auth new-key <tenant>`. Without keys the API runs open for local development and warns at startup.
+
 - Basic country risk scoring
-- Local watchlist matching
+- PEP screening is **not** implemented (needs a licensed data source)
 
 ### Developer Tools
 
@@ -222,7 +213,15 @@ pip install -r requirements-ml.txt     # optional: document OCR + face matching 
 pip install -r requirements-dev.txt    # tests
 
 python scripts/update_sanctions.py     # download and combine UN, OFAC, UK, EU lists
-uvicorn app.main:app --reload          # http://127.0.0.1:8000/docs
+uvicorn app.main:app --reload          # http://127.0.0.1:8000/docs and /screen
+```
+
+Screen one name:
+
+```bash
+curl -s -X POST http://127.0.0.1:8000/api/v1/aml/screen \
+  -H "Content-Type: application/json" -H "X-API-Key: $KEY" \
+  -d '{"full_name": "Ayman al-Zawahiri", "dob": "1951-06-19", "nationality": "EG", "entity_type": "person"}'
 ```
 
 Run the tests (ML-dependent tests are skipped unless you pass `--run-slow`):

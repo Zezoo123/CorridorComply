@@ -1,0 +1,22 @@
+{% extends "_base.html" %}
+{% block content %}
+<h1>Map the columns</h1>
+<p class="sub">{{ filename }} has {{ row_count }} rows. Tell us which column is which.</p>
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+<div class="card">
+<form method="post" action="/screen" enctype="multipart/form-data">
+  <label>Upload the same file again</label>
+  <input type="file" name="file" accept=".csv,.xlsx,.xlsm,text/csv" required>
+  {% for field, label in [("name_col","Name (required)"),("dob_col","Date of birth"),("nat_col","Nationality / country"),("type_col","Type (person / entity / vessel)"),("ref_col","Your reference / ID")] %}
+  <label for="{{ field }}">{{ label }}</label>
+  <select id="{{ field }}" name="{{ field }}">
+    <option value="">(none)</option>
+    {% for h in headers %}<option value="{{ h }}" {% if detected.get(field.replace('_col','').replace('nat','nationality').replace('type','entity_type').replace('ref','reference')) == h %}selected{% endif %}>{{ h }}</option>{% endfor %}
+  </select>
+  {% endfor %}
+  <label for="default_type">Default type when no type column</label>
+  <select id="default_type" name="default_type"><option value="person">Person</option><option value="entity">Company / organisation</option><option value="any">Everything</option></select>
+  <div style="margin-top:16px"><button type="submit">Screen file</button></div>
+</form>
+</div>
+{% endblock %}

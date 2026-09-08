@@ -193,8 +193,10 @@ def log_audit_event(event_type: str, data: Dict[str, Any], request: Any = None, 
     
     # Add request metadata if available
     if request:
+        state = getattr(request, "state", None)
         log_data.update({
-            'request_id': request.headers.get('X-Request-ID'),
+            'request_id': getattr(state, "request_id", None) or request.headers.get('X-Request-ID'),
+            'tenant': getattr(state, "tenant", None),
             'client_ip': request.client.host if request.client else None,
             'user_agent': request.headers.get('user-agent'),
             'method': request.method,
