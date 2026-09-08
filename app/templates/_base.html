@@ -40,7 +40,7 @@ details summary{cursor:pointer;color:var(--accent)}
 <div class="wrap">
 <header class="top">
   <a class="brand" href="/screen">Corridor<span>Comply</span> · Screening</a>
-  <nav><a href="/screen">Upload</a><a href="/alerts">Alerts{% if open_alerts %} <span class="pill high">{{ open_alerts }}</span>{% endif %}</a><a href="/screen/sample/customers.csv">Sample file</a><a href="/docs">API docs</a></nav>
+  <nav><a href="/screen">Upload</a><a href="/review">Review{% if pending_reviews %} <span class="pill medium">{{ pending_reviews }}</span>{% endif %}</a><a href="/alerts">Alerts{% if open_alerts %} <span class="pill high">{{ open_alerts }}</span>{% endif %}</a><a href="/screen/sample/customers.csv">Sample file</a><a href="/docs">API docs</a></nav>
 </header>
 {% block content %}{% endblock %}
 <p class="muted" style="margin-top:32px">Lists: UN consolidated, OFAC SDN, UK sanctions, EU consolidated. Names and listed aliases are both searched. Nothing you upload leaves this server. Every screening is recorded with the list version it ran against.</p>

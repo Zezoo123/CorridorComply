@@ -270,12 +270,70 @@ def _strip_images(d: Dict[str, Any]) -> Dict[str, Any]:
     return {k: v for k, v in (d or {}).items() if not str(k).endswith("_base64")}
 
 
-def decisions_for(session: Session, tenant_slug: str, limit: int = 100, outcome: Optional[str] = None) -> List[Decision]:
+def decisions_for(session: Session, tenant_slug: str, limit: int = 100, outcome: Optional[str] = None,
+                  pending: Optional[bool] = None, corridor: Optional[str] = None) -> List[Decision]:
     tenant = get_or_create_tenant(session, tenant_slug)
     q = select(Decision).where(Decision.tenant_id == tenant.id)
     if outcome:
         q = q.where(Decision.outcome == outcome)
+    if corridor:
+        q = q.where(Decision.corridor == corridor.upper())
+    if pending is True:
+        q = q.where(Decision.disposition.is_(None), Decision.outcome.in_(["review", "reject"]))
+    elif pending is False:
+        q = q.where(Decision.disposition.is_not(None))
     return list(session.scalars(q.order_by(Decision.id.desc()).limit(limit)))
+
+
+def get_decision(session: Session, tenant_slug: str, decision_id: int) -> Optional[Decision]:
+    tenant = get_or_create_tenant(session, tenant_slug)
+    row = session.get(Decision, decision_id)
+    if row is None or row.tenant_id != tenant.id:
+        return None
+    return row
+
+
+def disposition(session: Session, tenant_slug: str, decision_id: int, outcome: str, reason: str, by: str) -> Optional[Decision]:
+    """Record the reviewer's decision. Reason and reviewer are mandatory: this is the disposition trail."""
+    if outcome not in ("approved", "rejected", "escalated"):
+        raise ValueError("disposition must be approved, rejected or escalated")
+    if not (reason or "").strip():
+        raise ValueError("a reason is required")
+    if not (by or "").strip():
+        raise ValueError("the reviewer's name is required")
+    row = get_decision(session, tenant_slug, decision_id)
+    if row is None:
+        return None
+    row.disposition = outcome
+    row.disposition_reason = reason.strip()
+    row.disposition_by = by.strip()
+    row.disposition_at = datetime.utcnow()
+    session.flush()
+    return row
+
+
+def pending_count(session: Session, tenant_slug: str) -> int:
+    return len(decisions_for(session, tenant_slug, limit=1000, pending=True))
+
+
+def evidence_bundle(session: Session, tenant_slug: str, reference: str) -> Optional[Dict[str, Any]]:
+    """Everything on file for one customer: profile, screenings, decisions, alerts. For an inspector."""
+    tenant = get_or_create_tenant(session, tenant_slug)
+    customer = session.scalar(select(Customer).where(Customer.tenant_id == tenant.id, Customer.reference == reference))
+    if customer is None:
+        return None
+    screenings = list(session.scalars(select(Screening).where(Screening.customer_id == customer.id).order_by(Screening.id)))
+    decisions = list(session.scalars(select(Decision).where(Decision.customer_id == customer.id).order_by(Decision.id)))
+    alerts = list(session.scalars(select(Alert).where(Alert.customer_id == customer.id).order_by(Alert.id)))
+    return {
+        "generated_at": datetime.utcnow().isoformat(),
+        "tenant": tenant.slug,
+        "customer": customer_to_dict(customer),
+        "screenings": [screening_to_dict(s) for s in screenings],
+        "decisions": [decision_to_dict(d) for d in decisions],
+        "alerts": [alert_to_dict(a) for a in alerts],
+        "list_versions": sorted({s.list_version.label for s in screenings}),
+    }
 
 
 def decision_to_dict(d: Decision) -> Dict[str, Any]:
@@ -286,4 +344,7 @@ def decision_to_dict(d: Decision) -> Dict[str, Any]:
         "screening_id": d.screening_id, "customer_id": d.customer_id,
         "list_version": d.screening.list_version.label if d.screening else None,
         "created_at": d.created_at.isoformat(),
+        "disposition": d.disposition, "disposition_reason": d.disposition_reason, "disposition_by": d.disposition_by,
+        "disposition_at": d.disposition_at.isoformat() if d.disposition_at else None,
+        "hours_to_close": round((d.disposition_at - d.created_at).total_seconds() / 3600, 1) if d.disposition_at else None,
     }

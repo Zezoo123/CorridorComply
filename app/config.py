@@ -21,6 +21,9 @@ AUDIT_LOG_BACKUP_COUNT = 5  # Number of backup files to keep
 # CORS (comma-separated list of allowed origins; empty disables browser access)
 CORS_ORIGINS: List[str] = [o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()]
 
+# Tenant used when the API runs open (no keys configured) and by the web UI
+DEFAULT_TENANT = os.getenv("UI_TENANT", "default")
+
 # Sanctions data location (contains raw/, normalized/, combined/)
 SANCTIONS_DATA_DIR = Path(os.getenv("SANCTIONS_DATA_DIR", str(BASE_DIR / "app" / "data" / "sanctions")))
 

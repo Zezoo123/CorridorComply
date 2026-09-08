@@ -93,8 +93,9 @@ async def require_api_key(request: Request, key: Optional[str] = Depends(_header
     """Dependency: resolves the tenant for a request, or raises 401."""
     keys = load_keys()
     if is_open():
-        request.state.tenant = "dev"
-        return "dev"
+        from .config import DEFAULT_TENANT
+        request.state.tenant = DEFAULT_TENANT
+        return DEFAULT_TENANT
     if not key:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing X-API-Key header")
     tenant = keys.get(_digest(key))

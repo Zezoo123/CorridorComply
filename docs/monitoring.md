@@ -61,3 +61,17 @@ python -m app.auth revoke cc_abc123
 Keys are stored as SHA-256 hashes in `api_keys`. `API_KEYS` / `API_KEYS_FILE`
 still work for environment-based configuration. Everything a key does is scoped
 to its tenant: screenings, customers, alerts and settings.
+
+## Review console and dispositions
+
+Decisions whose engine outcome is `review` or `reject` wait in the review queue
+(`/review`, or `GET /api/v1/decisions?pending=true`) until a reviewer records
+a **disposition**: approved, rejected or escalated, with a mandatory reason and
+the reviewer's name (`POST /api/v1/decisions/{id}/disposition`). The case page
+shows every rule that fired with its regulatory basis, the screening matches
+with alias, DOB and nationality agreement, the identity-number checks, and the
+customer as submitted. Time from decision to disposition is recorded.
+
+`GET /api/v1/customers/{reference}/evidence` returns everything on file for one
+customer (profile, screenings, decisions with dispositions, alerts, the list
+versions used): the bundle to hand an inspector.

@@ -1,0 +1,76 @@
+{% extends "_base.html" %}
+{% block title %}Case #{{ d.id }} · {{ d.customer.full_name }}{% endblock %}
+{% block content %}
+<p class="meta"><a href="/review">← Review queue</a></p>
+<h1>{{ d.customer.full_name }} <span class="pill {% if d.outcome == 'reject' %}high{% elif d.outcome == 'review' %}medium{% else %}low{% endif %}">{{ d.outcome }} · {{ d.risk_score }}</span></h1>
+<p class="meta">Decision #{{ d.id }} · {{ d.created_at[:16].replace('T',' ') }} · corridor {{ d.corridor }} ruleset v{{ d.ruleset_version }} ({{ d.ruleset_status }}) · list version <code>{{ d.list_version }}</code>{% if d.request_id %} · request <code>{{ d.request_id }}</code>{% endif %}</p>
+
+{% if d.disposition %}
+<div class="card" style="border-color:var(--accent);background:var(--accent-soft)"><strong>Disposition: {{ d.disposition }}</strong> by {{ d.disposition_by }} on {{ d.disposition_at[:16].replace('T',' ') }} ({{ d.hours_to_close }} h after the decision)<div>{{ d.disposition_reason }}</div></div>
+{% else %}
+<div class="card">
+<h2 style="margin-top:0">Record your disposition</h2>
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+<form method="post" action="/review/{{ d.id }}">
+  <div class="row">
+    <label style="margin:0"><input type="radio" name="outcome" value="approved" required style="width:auto"> Approve: proceed with the customer</label>
+    <label style="margin:0"><input type="radio" name="outcome" value="rejected" style="width:auto"> Reject: do not proceed</label>
+    <label style="margin:0"><input type="radio" name="outcome" value="escalated" style="width:auto"> Escalate to the MLRO</label>
+  </div>
+  <label for="reason">Reason (required; this is what an inspector reads)</label>
+  <input id="reason" type="text" name="reason" required placeholder="e.g. Namesake: DOB 1990 vs listed 1953; QID verified in person" style="max-width:640px">
+  <label for="by">Reviewer name (required)</label>
+  <input id="by" type="text" name="by" required placeholder="Full name" style="max-width:320px">
+  <div style="margin-top:14px"><button type="submit">Save disposition</button></div>
+</form>
+</div>
+{% endif %}
+
+<h2>Why the engine said {{ d.outcome }}</h2>
+{% if not d.reasons %}<p class="muted">No rule fired.</p>{% else %}
+<div class="tablewrap"><table>
+<thead><tr><th>Rule</th><th>Outcome</th><th>Reason</th><th>Actions</th><th>Basis</th></tr></thead>
+<tbody>{% for r in d.reasons %}<tr><td><strong>{{ r.title }}</strong><div class="muted">{{ r.rule }} · +{{ r.risk_add }}</div></td><td><span class="pill {% if r.outcome == 'reject' %}high{% elif r.outcome == 'review' %}medium{% else %}low{% endif %}">{{ r.outcome }}</span></td><td>{{ r.reason }}</td><td class="muted">{{ (d.actions_by_rule.get(r.rule) or [])|join(', ') }}</td><td class="muted">{{ r.basis or '' }}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endif %}
+{% if d.actions %}<p><strong>Required actions:</strong> {{ d.actions|join(', ') }}</p>{% endif %}
+
+<h2>Screening</h2>
+{% if screening %}
+<p class="meta">{{ screening.match_count }} match{{ '' if screening.match_count == 1 else 'es' }} · screened as: {{ (screening.screened_variants or [screening.full_name])|join(' / ') }} · list <code>{{ screening.list_version }}</code></p>
+{% if screening.matches %}
+<div class="tablewrap"><table>
+<thead><tr><th>Listed name</th><th>Matched on</th><th>Score</th><th>DOB</th><th>Nationality</th><th>List</th><th>Listed IDs</th></tr></thead>
+<tbody>{% for m in screening.matches %}<tr>
+<td><strong>{{ m.sanctioned_name }}</strong>{% if m.aliases %}<div class="muted">aka {{ m.aliases[:4]|join('; ') }}</div>{% endif %}</td>
+<td>{{ m.matched_name }} <span class="pill info">{{ m.match_type }}</span></td>
+<td class="num">{{ m.similarity }} <span class="muted">{{ m.confidence }}</span></td>
+<td>{% if m.dob_agreement == 'exact' %}<span class="pill high">exact</span>{% elif m.dob_agreement == 'year' %}<span class="pill medium">year</span>{% elif m.dob_agreement == 'mismatch' %}<span class="pill low">differs</span>{% else %}<span class="muted">n/a</span>{% endif %}{% if m.dob %}<div class="muted">{{ m.dob|join(', ') }}</div>{% endif %}</td>
+<td>{% if m.country_match %}<span class="pill high">match</span>{% elif m.country_match == False %}<span class="pill low">differs</span>{% else %}<span class="muted">n/a</span>{% endif %}<div class="muted">{{ m.country or '' }}</div></td>
+<td>{{ m.source }}<div class="muted">{{ m.program or '' }}</div></td>
+<td class="muted">{{ m.id_numbers or '' }}</td>
+</tr>{% endfor %}</tbody></table></div>
+{% else %}<p class="muted">No similar name or identifier on any list.</p>{% endif %}
+{% else %}<p class="muted">No screening attached.</p>{% endif %}
+
+<div class="cols" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+<div class="card"><h2 style="margin-top:0">Customer as submitted</h2>
+<table>{% for k, v in d.customer.items() %}<tr><th style="width:40%">{{ k }}</th><td>{{ v }}</td></tr>{% endfor %}</table>
+{% if d.facts.get('customer.missing_fields') %}<p class="muted">Missing: {{ d.facts['customer.missing_fields']|join(', ') }}</p>{% endif %}
+</div>
+<div class="card"><h2 style="margin-top:0">Checks</h2>
+<table>
+<tr><th>ID number format</th><td>{% if d.facts.get('customer.id_valid') is none %}n/a{% elif d.facts['customer.id_valid'] %}valid{% else %}<span class="pill low">not well-formed</span>{% endif %}</td></tr>
+<tr><th>ID birth year vs DOB</th><td>{% if d.facts.get('customer.id_birth_year_matches') is none %}n/a{% elif d.facts['customer.id_birth_year_matches'] %}match{% else %}<span class="pill low">differs</span>{% endif %}</td></tr>
+<tr><th>ID nationality vs stated</th><td>{% if d.facts.get('customer.id_nationality_matches') is none %}n/a{% elif d.facts['customer.id_nationality_matches'] %}match{% else %}<span class="pill low">differs</span>{% endif %}</td></tr>
+<tr><th>Name flags</th><td>{{ (d.facts.get('customer.name_flags') or [])|join(', ') or 'none' }}</td></tr>
+<tr><th>Resident</th><td>{{ d.facts.get('customer.is_resident') }}</td></tr>
+<tr><th>PEP</th><td>{{ d.facts.get('customer.pep') }}</td></tr>
+<tr><th>Document verified / face match</th><td>{{ d.facts.get('kyc.document_verified') }} / {{ d.facts.get('kyc.face_match') }}</td></tr>
+<tr><th>Transfer</th><td>{{ d.facts.get('transfer.amount') }} → {{ d.facts.get('transfer.receive_amount') }} · {{ d.facts.get('transfer.purpose_category') or '' }}</td></tr>
+</table>
+{% if d.beneficiary %}<h3>Beneficiary</h3><table>{% for k, v in d.beneficiary.items() %}<tr><th style="width:40%">{{ k }}</th><td>{{ v }}</td></tr>{% endfor %}</table>{% endif %}
+</div>
+</div>
+{% if d.customer.reference %}<p style="margin-top:16px"><a class="btn secondary" href="/api/v1/customers/{{ d.customer.reference }}/evidence">Export evidence bundle (JSON)</a> <span class="muted">Everything on file for this customer: screenings, decisions, alerts, list versions.</span></p>{% endif %}
+{% endblock %}

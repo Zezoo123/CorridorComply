@@ -119,7 +119,7 @@ def test_tenant_settings_and_webhook(client, sanctions_data_dir, monkeypatch):
     client.post("/api/v1/monitoring/rescreen")
     assert sent["url"] == "https://example.test/hook"
     assert sent["json"]["alerts"][0]["kind"] == "new_hit"
-    assert sent["json"]["tenant"] == "dev"
+    assert sent["json"]["tenant"] == "default"
 
 
 def test_db_backed_api_keys(client, db, monkeypatch):

@@ -123,6 +123,11 @@ class Decision(Base):
     customer_data: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict)
     beneficiary_data: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    # Reviewer disposition (the trail an inspector reads)
+    disposition: Mapped[Optional[str]] = mapped_column(String(12), nullable=True, index=True)  # approved | rejected | escalated
+    disposition_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    disposition_by: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    disposition_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     screening: Mapped[Optional[Screening]] = relationship()
 

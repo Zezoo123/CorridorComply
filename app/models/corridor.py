@@ -79,3 +79,9 @@ class DecisionResponse(BaseModel):
     beneficiary_id_check: Optional[Dict[str, Any]] = None
     name_analysis: Optional[Dict[str, Any]] = None
     facts: Dict[str, Any]
+
+
+class DispositionIn(BaseModel):
+    outcome: str = Field(..., pattern=r"^(approved|rejected|escalated)$")
+    reason: str = Field(..., min_length=3, max_length=4000, description="What an inspector will read")
+    by: str = Field(..., min_length=2, max_length=200, description="Reviewer's name")
