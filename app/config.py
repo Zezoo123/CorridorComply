@@ -30,7 +30,11 @@ DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 
 # Sanctions Update Settings
 SANCTIONS_UPDATE_INTERVAL_DAYS = int(os.getenv("SANCTIONS_UPDATE_INTERVAL_DAYS", "7"))  # Update weekly by default
-SANCTIONS_AUTO_UPDATE_ENABLED = os.getenv("SANCTIONS_AUTO_UPDATE_ENABLED", "true").lower() == "true"
+# Off by default: run scripts/update_sanctions.py from a scheduler instead (see docs). The running
+# API notices a new combined file on its own.
+SANCTIONS_AUTO_UPDATE_ENABLED = os.getenv("SANCTIONS_AUTO_UPDATE_ENABLED", "false").lower() == "true"
+# How often the API checks the data directory for a newer combined file (seconds)
+SANCTIONS_RELOAD_CHECK_SECONDS = int(os.getenv("SANCTIONS_RELOAD_CHECK_SECONDS", "60"))
 
 class AppConfig:
     """Application configuration with type hints"""

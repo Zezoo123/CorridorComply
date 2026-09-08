@@ -149,6 +149,8 @@ cython_debug/
 *.sublime-workspace
 
 # Project-specific
+# Local database and runtime data
+data/
 # Database files
 *.db
 *.sqlite

@@ -1,11 +1,14 @@
 import uuid
-from fastapi import APIRouter, Request, status, HTTPException
+from fastapi import APIRouter, Depends, Request, status, HTTPException
+from sqlalchemy.orm import Session
 import logging
 from ..models.aml import (
     AMLScreenRequest, AMLScreenResponse, AMLBatchRequest, AMLBatchResponse, AMLBatchResult,
 )
 from ..services.aml_service import AMLService
 from ..core.logger import log_audit_event
+from ..db.database import get_session
+from ..services import records
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +20,7 @@ def _request_id(request: Request) -> str:
 
 
 @router.post("/screen", response_model=AMLScreenResponse)
-async def screen_aml(request: Request, payload: AMLScreenRequest):
+async def screen_aml(request: Request, payload: AMLScreenRequest, session: Session = Depends(get_session)):
     """
     Screen a person, company or vessel against the combined sanctions lists
     (UN, OFAC, UK, EU). Names and listed aliases are both searched; DOB and
@@ -32,6 +35,10 @@ async def screen_aml(request: Request, payload: AMLScreenRequest):
             nationality=payload.nationality,
             entity_type=payload.entity_type,
         )
+        row = records.save_screening(session, getattr(request.state, "tenant", "dev"), result, request_id=request_id,
+                                     channel="api", full_name=payload.full_name, dob=payload.dob,
+                                     nationality=payload.nationality, entity_type=payload.entity_type)
+        result["screening_id"] = row.id
         response = AMLScreenResponse(**result)
 
         logger.info(
@@ -79,7 +86,7 @@ async def screen_aml(request: Request, payload: AMLScreenRequest):
 
 
 @router.post("/screen/batch", response_model=AMLBatchResponse)
-async def screen_batch(request: Request, payload: AMLBatchRequest):
+async def screen_batch(request: Request, payload: AMLBatchRequest, session: Session = Depends(get_session)):
     """Screen up to 5,000 records in one call. Each result carries the caller's reference."""
     request_id = _request_id(request)
     results = []
@@ -88,6 +95,10 @@ async def screen_batch(request: Request, payload: AMLBatchRequest):
         r = AMLService.screen_sync(item.full_name, dob=item.dob, nationality=item.nationality,
                                    entity_type=item.entity_type, request_id=request_id)
         list_version = r["list_version"]
+        row = records.save_screening(session, getattr(request.state, "tenant", "dev"), r, request_id=request_id,
+                                     channel="batch", full_name=item.full_name, dob=item.dob,
+                                     nationality=item.nationality, entity_type=item.entity_type)
+        r["screening_id"] = row.id
         results.append(AMLBatchResult(reference=item.reference, full_name=item.full_name, **r))
     with_matches = sum(1 for r in results if r.sanctions_match)
     log_audit_event(

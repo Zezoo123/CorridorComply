@@ -2,6 +2,7 @@
 {% block title %}Screening report · {{ job.filename }}{% endblock %}
 {% block content %}
 <h1>Screening report</h1>
+{% if job.monitored %}<div class="card" style="border-color:var(--accent);background:var(--accent-soft)">These {{ job.total }} customers are now on file for ongoing monitoring. When a list changes, changed results appear under <a href="/alerts">Alerts</a>.</div>{% endif %}
 <p class="meta">{{ job.filename }} · screened {{ job.total }} rows in {{ job.elapsed }} s · list version <code>{{ job.list_version }}</code> · report id <code>{{ job.id }}</code></p>
 <div class="stats">
   <div class="stat"><b>{{ job.total }}</b><span>Rows screened</span></div>

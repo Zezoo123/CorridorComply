@@ -38,17 +38,22 @@ FastAPI routers:
 - `/api/v1/kyc/verify` - Document OCR + face matching verification
 - `/api/v1/aml/screen` and `/api/v1/aml/screen/batch` - Sanctions screening against consolidated lists
 - `/api/v1/risk/combined` - Combined risk scoring
-- `/screen` (`screen_ui.py`) - Jinja2 upload UI for screening a customer file and downloading a CSV report
+- `/api/v1/customers`, `/api/v1/monitoring/rescreen`, `/api/v1/alerts`, `/api/v1/screenings`, `/api/v1/tenant`, `/api/v1/lists/current` (`records.py`) - persistence and ongoing monitoring
+- `/screen` and `/alerts` (`screen_ui.py`) - Jinja2 UI: upload a customer file, optionally keep customers on file, review alerts. The UI acts for one tenant (`UI_TENANT`, default `default`).
 
 `/api/v1/*` routes require `X-API-Key` when keys are configured (`app/auth.py`, `API_KEYS` / `API_KEYS_FILE`); the tenant lands in `request.state.tenant` and in every audit event.
 
 ### Services (`app/services/`)
 - `kyc_service.py` - Orchestrates document validation and face matching
 - `aml_service.py` - Sanctions screening (thin wrapper over `screening.py`)
+- `records.py` - Persistence: tenants, list versions (by checksum), screenings, customers, re-screening + alerts + webhook
 - `screening.py` - In-memory screening index: names + aliases, blocking keys, entity-type filter, DOB/nationality agreement, `list_version`
 - `risk_engine.py` - Unified risk scoring (AML weighted 60%, KYC 40%)
 - `sanctions_loader.py` - Loads/caches combined sanctions CSV, auto-finds latest file
 - `face_match.py` - DeepFace-based face comparison
+
+### Database (`app/db/`)
+SQLAlchemy 2 models in `models.py`; lazy engine in `database.py` (`DATABASE_URL`, default SQLite under `data/`); Alembic migrations in `migrations/` (`alembic upgrade head`). Tests get a fresh SQLite file via the `db` fixture. `app/monitoring.py` is the re-screen CLI for cron.
 
 ### Core (`app/core/`)
 - `ocr.py` - Passport MRZ extraction using EasyOCR and mrz library
@@ -78,15 +83,17 @@ All endpoints accept `X-Request-ID` header for tracing. If not provided, generat
 ### Image Handling
 Document and selfie images are passed as base64-encoded strings in request payloads. The `decode_base64_image()` function in `kyc.py` handles data URL prefixes.
 
-### Sanctions Auto-Update
-On API startup, `SanctionsLoader.check_if_update_needed()` checks file age against `SANCTIONS_UPDATE_INTERVAL_DAYS` (default: 7). If stale and `SANCTIONS_AUTO_UPDATE_ENABLED=true`, runs `scripts/update_sanctions.py` in background thread.
+### Sanctions Updates
+Run `scripts/update_sanctions.py --max-age-hours N` from a scheduler, then `python -m app.monitoring rescreen`. The startup auto-update still exists but is off by default (`SANCTIONS_AUTO_UPDATE_ENABLED=false`). A running API reloads a newer combined file on its own (`SANCTIONS_RELOAD_CHECK_SECONDS`). The loader ignores the `combined_sanctions_latest.csv` symlink and reports the dated file name as the list version.
 
 ## Configuration
 
 Environment variables (see `app/config.py`):
 - `LOG_LEVEL` - Logging level (default: INFO)
 - `SANCTIONS_UPDATE_INTERVAL_DAYS` - Days between updates (default: 7)
-- `SANCTIONS_AUTO_UPDATE_ENABLED` - Auto-update on startup (default: true)
+- `SANCTIONS_AUTO_UPDATE_ENABLED` - Auto-update on startup (default: false; use the scheduler)
+- `DATABASE_URL` - SQLAlchemy URL (default SQLite in `data/`)
+- `UI_TENANT` - Tenant the web UI acts for (default `default`)
 - `ENVIRONMENT` - development/production
 - `DEBUG` - Enable debug mode
 - `CORS_ORIGINS` - Comma-separated allowed origins (unset = no CORS headers)

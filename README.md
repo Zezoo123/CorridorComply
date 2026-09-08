@@ -110,7 +110,7 @@ pytest tests/test_sanctions_loader.py -v
 ### AML Core
 
 - **Sanctions Screening**
-  - Combined list from UN, OFAC (SDN), UK and EU, refreshed by `scripts/update_sanctions.py`
+  - Combined list from UN, OFAC (SDN), UK (OFSI consolidated list) and EU, refreshed by `scripts/update_sanctions.py` on a schedule
   - Names **and listed aliases** are searched; transliteration variants (Mohammed / Muhammad / Mohamed) block together
   - Entity-type aware: screen a person against individuals, a company against entities, or a vessel
   - Date of birth and nationality compared with the list entry (exact / year / mismatch), and a mismatch lowers the score
@@ -120,7 +120,13 @@ pytest tests/test_sanctions_loader.py -v
 
 - **Screening web UI** at `/screen`: upload a CSV or XLSX of customers, review hits, download the report. Built for shadow runs on the customer's own machine; nothing leaves the server.
 
-- **API keys**: set `API_KEYS="tenant:key,..."` or `API_KEYS_FILE=keys.json`. Generate one with `python -m app.auth new-key <tenant>`. Without keys the API runs open for local development and warns at startup.
+- **Evidence and monitoring** (see `docs/monitoring.md`)
+  - Every screening is stored with the list version (file checksum) it ran against
+  - Customers on file are re-screened after each list update; changes raise alerts (`new_hit`, `new_match`, `hit_cleared`) with an optional webhook
+  - `/alerts` page and `GET /api/v1/alerts`; acknowledge with a reason
+  - SQLite by default, Postgres via `DATABASE_URL`, migrations with Alembic
+
+- **API keys**: `python -m app.auth new-key <tenant>` stores a hashed key in the database; `API_KEYS="tenant:key,..."` or `API_KEYS_FILE=keys.json` also work. Without keys the API runs open for local development and warns at startup.
 
 - Basic country risk scoring
 - PEP screening is **not** implemented (needs a licensed data source)

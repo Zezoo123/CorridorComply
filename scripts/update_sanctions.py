@@ -142,12 +142,25 @@ def download_ofac_sanctions() -> Tuple[bool, list[Path]]:
     return False, []
 
 
+UK_CONLIST_URL = "https://ofsistorage.blob.core.windows.net/publishlive/2022format/ConList.csv"
+
+
 def download_uk_sanctions() -> Tuple[bool, Optional[Path]]:
-    """Download UK sanctions file using the API endpoint."""
+    """Download the OFSI consolidated list (DOB, nationality, aliases); fall back to the search-service ODS."""
     output_dir = RAW_DIR / "uk"
     output_dir.mkdir(parents=True, exist_ok=True)
-    
     timestamp = datetime.now().strftime("%Y%m%d")
+
+    conlist_path = output_dir / f"ConList_{timestamp}.csv"
+    ok, _ = download_file(UK_CONLIST_URL, conlist_path)
+    if ok and conlist_path.stat().st_size > 1_000_000:
+        for old in output_dir.glob("ConList_*.csv"):
+            if old != conlist_path:
+                old.unlink(missing_ok=True)
+        return True, conlist_path
+    logger.warning("OFSI ConList download failed or too small; falling back to the search-service ODS export")
+    conlist_path.unlink(missing_ok=True)
+
     output_path = output_dir / f"uk_sanctions_{timestamp}.ods"
     
     try:
@@ -395,9 +408,31 @@ def update_sanctions_lists(force: bool = False) -> int:
         return 1
 
 
+def latest_combined_age_hours() -> Optional[float]:
+    files = [f for f in COMBINED_DIR.glob("combined_sanctions_*.csv") if not f.is_symlink()]
+    if not files:
+        return None
+    newest = max(f.stat().st_mtime for f in files)
+    return (datetime.now().timestamp() - newest) / 3600
+
+
 def main() -> int:
-    """Main function for command-line usage."""
-    return update_sanctions_lists(force=False)
+    """Command-line usage: update_sanctions.py [--max-age-hours N]
+
+    With --max-age-hours, the update is skipped when the newest combined file
+    is younger than N hours. Suitable for an hourly cron entry.
+    """
+    import argparse
+    parser = argparse.ArgumentParser(description="Download, convert and combine sanctions lists")
+    parser.add_argument("--max-age-hours", type=float, default=None,
+                        help="skip when the combined list is younger than this many hours")
+    args = parser.parse_args()
+    if args.max_age_hours is not None:
+        age = latest_combined_age_hours()
+        if age is not None and age < args.max_age_hours:
+            logger.info(f"Combined list is {age:.1f}h old (< {args.max_age_hours}h); nothing to do")
+            return 0
+    return update_sanctions_lists(force=True)
 
 
 if __name__ == "__main__":

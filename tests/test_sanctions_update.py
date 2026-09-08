@@ -75,35 +75,43 @@ class TestSanctionsDownload:
             assert all("sdn.csv" in str(f) or "alt.csv" in str(f) or "add.csv" in str(f) for f in files)
             assert mock_download.call_count == 3
     
+    @patch('scripts.update_sanctions.requests.get')
+    def test_download_uk_sanctions_conlist(self, mock_get, temp_data_dir):
+        """UK comes from the OFSI ConList.csv when it downloads successfully."""
+        mock_response = MagicMock()
+        mock_response.headers = {'content-length': '16000000'}
+        mock_response.raise_for_status = Mock()
+        mock_response.iter_content = Mock(return_value=[b'x' * 8192] * 200)  # > 1 MB
+        mock_get.return_value = mock_response
+
+        with patch('scripts.update_sanctions.RAW_DIR', temp_data_dir / "raw"):
+            success, file_path = download_uk_sanctions()
+            assert success is True
+            assert file_path is not None and file_path.exists()
+            assert file_path.name.startswith("ConList_") and file_path.suffix == ".csv"
+            assert "ofsistorage" in mock_get.call_args[0][0]
+
     @patch('scripts.update_sanctions.requests.post')
-    def test_download_uk_sanctions(self, mock_post, temp_data_dir):
-        """Test UK sanctions download via API endpoint."""
-        # Create a real output file for the test
-        output_file = temp_data_dir / "raw" / "uk" / "uk_sanctions_20251230.ods"
-        output_file.parent.mkdir(parents=True, exist_ok=True)
-        
-        # Mock successful API response
+    @patch('scripts.update_sanctions.requests.get')
+    def test_download_uk_sanctions_falls_back_to_ods(self, mock_get, mock_post, temp_data_dir):
+        """If the ConList download fails, the search-service ODS report is used."""
+        import requests as _requests
+        mock_get.side_effect = _requests.exceptions.ConnectionError("down")
         mock_response = MagicMock()
         mock_response.headers = {'content-length': '185000'}
         mock_response.raise_for_status = Mock()
         mock_response.iter_content = Mock(return_value=[b'fake ods content'] * 100)
         mock_post.return_value = mock_response
-        
+
         with patch('scripts.update_sanctions.RAW_DIR', temp_data_dir / "raw"):
             success, file_path = download_uk_sanctions()
-            
             assert success is True
-            assert file_path is not None
             assert file_path.suffix == ".ods"
-            assert "uk_sanctions" in file_path.name
-            mock_post.assert_called_once()
-            # Verify API endpoint and payload
+            assert not list((temp_data_dir / "raw" / "uk").glob("ConList_*.csv"))
             call_args = mock_post.call_args
             assert "api/report/ods" in call_args[0][0]
             assert call_args[1]['json']['query'] == ""
-            # Verify file was written
-            assert file_path.exists()
-    
+
     @patch('scripts.update_sanctions.requests.get')
     def test_download_eu_sanctions_success(self, mock_get, temp_data_dir):
         """Test EU sanctions download via the direct consolidated CSV URL."""
@@ -361,7 +369,7 @@ class TestSanctionsUpdateReal:
         assert success is True
         assert file_path is not None
         assert file_path.exists()
-        assert file_path.suffix == ".ods"
+        assert file_path.suffix in (".csv", ".ods")  # OFSI ConList, or the ODS fallback
         
     def test_real_eu_download(self, request):
         """Test real EU sanctions download (slow test)."""

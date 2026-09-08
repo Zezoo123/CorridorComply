@@ -10,9 +10,11 @@ RUN pip install -r requirements.txt \
 
 COPY app ./app
 COPY scripts ./scripts
+COPY alembic.ini ./
 
-# Sanctions data and logs live outside the image
-ENV SANCTIONS_DATA_DIR=/data/sanctions SANCTIONS_AUTO_UPDATE_ENABLED=false
+# Sanctions data, the database and logs live outside the image.
+# Set DATABASE_URL for Postgres; otherwise SQLite at /data/corridorcomply.db.
+ENV SANCTIONS_DATA_DIR=/data/sanctions DATA_DIR=/data SANCTIONS_AUTO_UPDATE_ENABLED=false
 VOLUME ["/data", "/srv/logs"]
 EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]

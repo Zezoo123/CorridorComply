@@ -16,12 +16,20 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, Response
+import os
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
+from sqlalchemy.orm import Session
 
 from ..core.logger import log_audit_event
+from ..db.database import get_session
+from ..services import records
 from ..services.aml_service import AMLService
+
+# The web UI has no login yet; on a single-operator deployment it acts for one tenant.
+UI_TENANT = os.getenv("UI_TENANT", "default")
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -103,9 +111,14 @@ def _remember(job: Dict[str, Any]) -> None:
     _JOBS[job["id"]] = job
 
 
+def _ctx(request: Request, session: Session, **extra):
+    open_alerts = len(records.alerts_for(session, UI_TENANT, status="open"))
+    return {"request": request, "open_alerts": open_alerts, "tenant": UI_TENANT, **extra}
+
+
 @router.get("/screen", response_class=HTMLResponse)
-async def screen_form(request: Request):
-    return templates.TemplateResponse("screen_upload.html", {"request": request, "error": None})
+async def screen_form(request: Request, session: Session = Depends(get_session)):
+    return templates.TemplateResponse("screen_upload.html", _ctx(request, session, error=None))
 
 
 @router.post("/screen", response_class=HTMLResponse)
@@ -118,18 +131,20 @@ async def screen_upload(
     type_col: str = Form(""),
     ref_col: str = Form(""),
     default_type: str = Form("person"),
+    monitor: str = Form(""),
+    session: Session = Depends(get_session),
 ):
     content = await file.read()
     if not content:
-        return templates.TemplateResponse("screen_upload.html", {"request": request, "error": "The file is empty."})
+        return templates.TemplateResponse("screen_upload.html", _ctx(request, session, error="The file is empty."))
     try:
         headers, rows = read_table(file.filename or "", content)
     except HTTPException as e:
-        return templates.TemplateResponse("screen_upload.html", {"request": request, "error": e.detail})
+        return templates.TemplateResponse("screen_upload.html", _ctx(request, session, error=e.detail))
     if not headers or not rows:
-        return templates.TemplateResponse("screen_upload.html", {"request": request, "error": "Could not find a header row and at least one data row."})
+        return templates.TemplateResponse("screen_upload.html", _ctx(request, session, error="Could not find a header row and at least one data row."))
     if len(rows) > MAX_ROWS:
-        return templates.TemplateResponse("screen_upload.html", {"request": request, "error": f"Too many rows ({len(rows)}). The limit is {MAX_ROWS} per file."})
+        return templates.TemplateResponse("screen_upload.html", _ctx(request, session, error=f"Too many rows ({len(rows)}). The limit is {MAX_ROWS} per file."))
 
     detected = detect_columns(headers)
     cols = {
@@ -141,10 +156,10 @@ async def screen_upload(
     }
     if not cols["name"] or cols["name"] not in headers:
         # Ask the user to map columns
-        return templates.TemplateResponse("screen_map.html", {
-            "request": request, "headers": headers, "detected": detected, "filename": file.filename,
-            "row_count": len(rows), "error": "Which column holds the name?",
-        })
+        return templates.TemplateResponse("screen_map.html", _ctx(
+            request, session, headers=headers, detected=detected, filename=file.filename,
+            row_count=len(rows), error="Which column holds the name?", monitor=bool(monitor),
+        ))
 
     t0 = time.time()
     results = []
@@ -159,6 +174,12 @@ async def screen_upload(
         ref = (row.get(cols["reference"]) or str(i)) if cols["reference"] else str(i)
         r = AMLService.screen_sync(name, dob=dob or None, nationality=nat or None, entity_type=et)
         list_version = r["list_version"]
+        customer = None
+        if monitor:
+            customer = records.upsert_customer(session, UI_TENANT, ref, name, dob=dob or None,
+                                               nationality=nat or None, entity_type=et, monitored=True)
+        records.save_screening(session, UI_TENANT, r, channel="web_upload", full_name=name, dob=dob or None,
+                               nationality=nat or None, entity_type=et, customer=customer)
         results.append({
             "row": i, "reference": ref, "name": name, "dob": dob or "", "nationality": nat or "",
             "entity_type": et, "match": r["sanctions_match"], "risk_score": r["risk_score"],
@@ -172,24 +193,54 @@ async def screen_upload(
         "list_version": list_version, "elapsed": round(time.time() - t0, 2),
         "total": len(results), "hits": len(hits), "high": len(high),
         "results": sorted(results, key=lambda r: (-r["risk_score"], r["row"])),
-        "columns": cols,
+        "columns": cols, "monitored": bool(monitor),
     }
     _remember(job)
     log_audit_event(
         event_type="aml_batch_screening",
         data={"status": "success", "channel": "web_upload", "upload_filename": file.filename, "total": job["total"],
-              "with_matches": job["hits"], "high_confidence": job["high"], "list_version": list_version},
+              "with_matches": job["hits"], "high_confidence": job["high"], "list_version": list_version,
+              "monitored": bool(monitor)},
         request=request,
     )
-    return templates.TemplateResponse("screen_report.html", {"request": request, "job": job})
+    return templates.TemplateResponse("screen_report.html", _ctx(request, session, job=job))
 
 
 @router.get("/screen/{job_id}", response_class=HTMLResponse)
-async def screen_report(request: Request, job_id: str):
+async def screen_report(request: Request, job_id: str, session: Session = Depends(get_session)):
     job = _JOBS.get(job_id)
     if not job:
         raise HTTPException(404, "Report not found (reports are kept in memory until the server restarts).")
-    return templates.TemplateResponse("screen_report.html", {"request": request, "job": job})
+    return templates.TemplateResponse("screen_report.html", _ctx(request, session, job=job))
+
+
+# ------------------------------------------------------------------ alerts
+@router.get("/alerts", response_class=HTMLResponse)
+async def alerts_page(request: Request, show: str = "open", session: Session = Depends(get_session)):
+    alerts = records.alerts_for(session, UI_TENANT, status=None if show == "all" else show)
+    customers = records.customers_for(session, UI_TENANT, monitored_only=True)
+    try:
+        lv = records.current_list_version(session).label
+    except Exception:
+        lv = None
+    return templates.TemplateResponse("alerts.html", _ctx(
+        request, session, alerts=[records.alert_to_dict(a) for a in alerts], show=show,
+        monitored_count=len(customers), list_version=lv))
+
+
+@router.post("/alerts/rescreen")
+async def alerts_rescreen(request: Request, session: Session = Depends(get_session)):
+    summary = records.rescreen_tenant(session, UI_TENANT, only_if_new_version=False)
+    log_audit_event("monitoring_rescreen", {"status": "success", "channel": "web",
+                                            **{k: v for k, v in summary.items() if k != "alert_ids"}}, request=request)
+    return RedirectResponse("/alerts", status_code=303)
+
+
+@router.post("/alerts/{alert_id}/ack")
+async def alerts_ack(request: Request, alert_id: int, note: str = Form(""), session: Session = Depends(get_session)):
+    records.acknowledge_alert(session, UI_TENANT, alert_id, by="web", note=note)
+    log_audit_event("alert_acknowledged", {"status": "success", "alert_id": alert_id, "channel": "web"}, request=request)
+    return RedirectResponse("/alerts", status_code=303)
 
 
 @router.get("/screen/{job_id}/report.csv")

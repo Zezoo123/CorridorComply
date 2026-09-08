@@ -40,6 +40,7 @@ class AMLScreenResponse(BaseModel):
     details: List[str] = Field(default_factory=list)
     matches: List[MatchResult] = Field(default_factory=list)
     list_version: Optional[str] = Field(None, description="Identifier of the list file screened against")
+    screening_id: Optional[int] = Field(None, description="Persistent evidence record id")
 
 
 class AMLBatchItem(AMLScreenRequest):
