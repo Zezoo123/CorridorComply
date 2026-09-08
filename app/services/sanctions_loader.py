@@ -12,6 +12,8 @@ class SanctionsLoader:
     
     _cache: ClassVar[Optional[pd.DataFrame]] = None
     _cache_version: ClassVar[Optional[str]] = None
+    _cache_path: ClassVar[Optional[Path]] = None
+    _last_check: ClassVar[float] = 0.0
     _REQUIRED_COLUMNS = {"source", "record_type", "dataid", "name"}
     _STRING_COLUMNS = [
         "aliases", "nationalities", "pob_cities", "pob_countries",
@@ -31,11 +33,11 @@ class SanctionsLoader:
     def _find_latest_sanctions_file(cls, directory: Path) -> Path:
         """Find the most recent combined sanctions file in the given directory."""
         pattern = "combined_sanctions_*.csv"
-        files = list(directory.glob(pattern))
+        files = [f for f in directory.glob(pattern) if not f.is_symlink()]
         
         if not files:
             # Also check in the parent directory for backward compatibility
-            parent_files = list(directory.parent.glob(pattern))
+            parent_files = [f for f in directory.parent.glob(pattern) if not f.is_symlink()]
             if parent_files:
                 files = parent_files
             else:
@@ -98,7 +100,9 @@ class SanctionsLoader:
         # If we have a cached version and no specific path is requested, return it
         use_cache = path is None
         if cls._cache is not None and use_cache:
-            return cls._cache
+            cls._reload_if_newer_file()
+            if cls._cache is not None:
+                return cls._cache
         
         # Resolve the path to the sanctions file
         if path is None:
@@ -127,7 +131,9 @@ class SanctionsLoader:
             # Cache the result if no specific path was provided
             if use_cache:
                 cls._cache = df
-                cls._cache_version = cls._version_of(path)
+                cls._cache_path = Path(path)
+                cls._cache_version = cls._version_of(Path(path))
+                cls._last_check = datetime.now().timestamp()
             return df
             
         except Exception as e:
@@ -135,10 +141,34 @@ class SanctionsLoader:
             raise
 
     @classmethod
+    def _reload_if_newer_file(cls) -> None:
+        """Drop the cache when a newer combined file has appeared (checked at most every N seconds)."""
+        from ..config import SANCTIONS_RELOAD_CHECK_SECONDS
+        now = datetime.now().timestamp()
+        if now - cls._last_check < SANCTIONS_RELOAD_CHECK_SECONDS:
+            return
+        cls._last_check = now
+        try:
+            latest = cls._find_latest_sanctions_file(cls.combined_dir())
+        except FileNotFoundError:
+            return
+        if cls._cache_path is None or latest.resolve() != cls._cache_path.resolve() \
+                or latest.stat().st_mtime != cls._cache_path.stat().st_mtime:
+            logger.info(f"Newer sanctions file detected: {latest.name}; reloading")
+            cls.clear_cache()
+
+    @classmethod
+    def current_path(cls) -> Optional[Path]:
+        if cls._cache is None:
+            cls.load()
+        return cls._cache_path
+
+    @classmethod
     def clear_cache(cls) -> None:
         """Clear the cached sanctions data (and the screening index built from it)."""
         cls._cache = None
         cls._cache_version = None
+        cls._cache_path = None
         try:
             from .screening import reset_index
             reset_index()
@@ -148,12 +178,13 @@ class SanctionsLoader:
 
     @staticmethod
     def _version_of(path: Path) -> str:
-        """Identify a list file for evidence: its name and modification time."""
+        """Identify a list file for evidence: its real (dated) name and modification time."""
+        real = path.resolve() if path.is_symlink() else path
         try:
-            mtime = datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%dT%H:%M:%S")
+            mtime = datetime.fromtimestamp(real.stat().st_mtime).strftime("%Y-%m-%dT%H:%M:%S")
         except OSError:
             mtime = "unknown"
-        return f"{path.name}@{mtime}"
+        return f"{real.name}@{mtime}"
 
     @classmethod
     def current_version(cls) -> str:
