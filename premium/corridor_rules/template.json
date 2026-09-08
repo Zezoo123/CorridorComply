@@ -1,0 +1,18 @@
+{
+  "_comment": "Template for a corridor ruleset. Copy to <sending>_<receiving>_rules.json, fill every field, keep status 'draft' until a named compliance professional has reviewed it. Fields a rule may reference are listed in app/corridor/schema.py (FIELDS).",
+  "id": "XX-YY",
+  "version": "0.1.0",
+  "status": "draft",
+  "reviewed_by": null,
+  "reviewed_on": null,
+  "title": "Sending country to receiving country: onboarding and screening decision rules",
+  "sources": [],
+  "sending": {"country": "XX", "currency": "", "regulators": [], "national_lists": [], "documents": [], "required_fields": {"person": [], "entity": []}},
+  "receiving": {"country": "YY", "currency": "", "regulators": [], "national_lists": [], "documents": [], "required_fields": {"beneficiary": []}},
+  "screening": {"lists": ["UN", "OFAC", "UK", "EU"], "threshold": 85, "require_dob_for_single_names": true, "screen_name_variants": true, "high_risk_countries": []},
+  "rules": [
+    {"id": "example-rule", "title": "Example", "when": {"all": [{"field": "screening.best_confidence", "op": "eq", "value": "high"}]},
+     "outcome": "review", "risk_add": 10, "reason": "Why the reviewer sees this", "actions": ["escalate_mlro"], "basis": "Regulatory basis"}
+  ],
+  "reporting": {"fiu": "", "portal": "", "str_prefill_fields": []}
+}
