@@ -41,6 +41,8 @@ class AMLScreenResponse(BaseModel):
     matches: List[MatchResult] = Field(default_factory=list)
     list_version: Optional[str] = Field(None, description="Identifier of the list file screened against")
     screening_id: Optional[int] = Field(None, description="Persistent evidence record id")
+    name_flags: List[str] = Field(default_factory=list, description="single_name, patronymic, compound_surname, suffix")
+    screened_variants: List[str] = Field(default_factory=list, description="Name forms actually screened")
 
 
 class AMLBatchItem(AMLScreenRequest):

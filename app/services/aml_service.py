@@ -8,10 +8,25 @@ class AMLService:
 
     @staticmethod
     def screen_sync(full_name: str, dob: Optional[str] = None, nationality: Optional[str] = None,
-                    entity_type: str = "person", request_id: str = "") -> Dict[str, Any]:
+                    entity_type: str = "person", request_id: str = "", threshold: int = SIMILARITY_THRESHOLD,
+                    use_variants: bool = True) -> Dict[str, Any]:
         index = get_index()
-        candidates = index.screen(full_name, dob=dob, nationality=nationality, entity_type=entity_type,
-                                  threshold=SIMILARITY_THRESHOLD)
+        # Population-aware name variants (Filipino middle names, patronymics) so a
+        # listed person is not missed because the customer supplied a longer form.
+        variants = [full_name]
+        name_flags: List[str] = []
+        if use_variants and entity_type == "person":
+            from ..corridor.names import analyze
+            info = analyze(full_name, nationality)
+            name_flags = info.flags
+            variants = info.variants or [full_name]
+        best: Dict[str, Any] = {}
+        for v in variants:
+            for c in index.screen(v, dob=dob, nationality=nationality, entity_type=entity_type, threshold=threshold):
+                key = f"{c.entry.source}:{c.entry.dataid}"
+                if key not in best or c.similarity > best[key].similarity:
+                    best[key] = c
+        candidates = sorted(best.values(), key=lambda c: (-c.similarity, c.dob_agreement != "exact", c.entry.name))[:25]
 
         matches: List[Dict[str, Any]] = []
         for c in candidates:
@@ -55,6 +70,8 @@ class AMLService:
             "details": details,
             "matches": matches,
             "list_version": index.list_version,
+            "name_flags": name_flags,
+            "screened_variants": variants,
         }
 
     @staticmethod

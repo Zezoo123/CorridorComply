@@ -49,9 +49,10 @@ def test_upload_screens_rows_and_downloads_csv(client):
     assert "MOHAMMAD REZA NAQDI" in r.text          # alias hit
     assert "BANK MELLAT" in r.text                  # entity typed row
     assert "Jonathan Whitfield" in r.text
-    # 4 screened rows (the blank-name row is skipped); 2 hits: the Naqdi alias and the Mellat entity.
-    # "Maria Clara Santos" scores below the threshold against "MARIA SANTOS" (extra given name).
-    assert "<b>4</b>" in r.text and "<b>2</b>" in r.text
+    # 4 screened rows (the blank-name row is skipped); 3 hits: the Naqdi alias, the Mellat entity,
+    # and "Maria Clara Santos" (Filipino middle name dropped by name-variant screening -> MARIA SANTOS).
+    assert "MARIA SANTOS" in r.text
+    assert "<b>4</b>" in r.text and "<b>3</b>" in r.text
     job_id = r.text.split("report id <code>")[1].split("</code>")[0]
 
     csv_r = client.get(f"/screen/{job_id}/report.csv")
