@@ -442,9 +442,10 @@ def validate_document_ocr(document_image: Image.Image, document_type: Optional[s
                 "details": ["MRZ extraction failed"]
             }
         
-        # Initialize EasyOCR reader (lazy initialization could be added)
+        # Shared, lazily created EasyOCR reader (model load once per process)
         try:
-            reader = easyocr.Reader(['en'], gpu=False, verbose=False)
+            from .id_ocr import get_ocr_reader
+            reader = get_ocr_reader()
         except Exception as e:
             logger.error(f"Failed to initialize EasyOCR: {str(e)}")
             return {

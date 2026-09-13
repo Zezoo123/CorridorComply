@@ -51,6 +51,7 @@ FastAPI routers:
 - `risk_engine.py` - Unified risk scoring (AML weighted 60%, KYC 40%)
 - `sanctions_loader.py` - Loads/caches combined sanctions CSV, auto-finds latest file
 - `face_match.py` - DeepFace-based face comparison
+- `liveness.py` - `LivenessProvider` interface: `NullProvider` (default, reports "not checked") and `HttpProvider` (vendor endpoint via `LIVENESS_PROVIDER=http`, `LIVENESS_URL`, `LIVENESS_API_KEY`); result feeds `RiskEngine.calculate_kyc_risk_score(liveness=...)`
 
 ### Corridor engine (`app/corridor/`)
 - `schema.py` - Pydantic contract for a ruleset (documents, required fields, screening policy, rules with `when` conditions over `FIELDS`, reporting). `status` must be `draft` until `reviewed_by` is set.
@@ -105,6 +106,9 @@ Environment variables (see `app/config.py`):
 - `DATABASE_URL` - SQLAlchemy URL (default SQLite in `data/`)
 - `UI_TENANT` - Tenant the web UI acts for (default `default`)
 - `CORRIDOR_RULES_DIR` - Directory of corridor ruleset JSON files (default `premium/corridor_rules`)
+- `LIVENESS_PROVIDER` / `LIVENESS_URL` / `LIVENESS_API_KEY` / `LIVENESS_TIMEOUT` - vendor liveness check (default none)
+
+Docs: `docs/pilot/` is the pilot pack; regenerate `docs/api_reference.md` with `python scripts/export_api_reference.py` after route changes.
 - `ENVIRONMENT` - development/production
 - `DEBUG` - Enable debug mode
 - `CORS_ORIGINS` - Comma-separated allowed origins (unset = no CORS headers)

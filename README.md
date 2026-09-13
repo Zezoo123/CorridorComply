@@ -251,6 +251,10 @@ docker build -t corridorcomply .
 docker run -p 8000:8000 -v $(pwd)/app/data/sanctions:/data/sanctions corridorcomply
 ```
 
+## Pilot pack
+
+`docs/pilot/` holds what a compliance officer receives: onboarding guide, data-handling note, screening methodology, a draft outsourcing clause (QCB item 6.7), and the generated API reference. Liveness is a vendor interface (`LIVENESS_PROVIDER=http`, `LIVENESS_URL`, `LIVENESS_API_KEY`); with no provider the KYC result says "not checked".
+
 ## Contributing
 
 Open-source contributions are welcome for:
