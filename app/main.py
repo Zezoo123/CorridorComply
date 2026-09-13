@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="CorridorComply API",
     description="Sanctions screening, KYC document verification and risk scoring for cross-border corridors.",
-    version="0.2.0"
+    version="0.3.0"
 )
 
 # Add CORS middleware (origins come from CORS_ORIGINS; no wildcard with credentials)
