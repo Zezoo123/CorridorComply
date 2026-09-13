@@ -16,7 +16,7 @@
 </div>
 <div class="tablewrap">
 <table>
-<thead><tr><th>#</th><th>Reference</th><th>Name</th><th>DOB</th><th>Nat.</th><th>Result</th><th>Best match</th><th>Matched on</th><th>Score</th><th>DOB</th><th>Nationality</th><th>List</th></tr></thead>
+<thead><tr><th>#</th><th>Reference</th><th>Name</th><th>DOB</th><th>Nat.</th><th>ID no.</th><th>Result</th><th>Best match</th><th>Matched on</th><th>Score</th><th>DOB</th><th>Nationality</th><th>List</th></tr></thead>
 <tbody>
 {% for r in job.results %}
 <tr>
@@ -25,6 +25,7 @@
   <td><strong>{{ r.name }}</strong>{% if r.entity_type != 'person' %} <span class="pill info">{{ r.entity_type }}</span>{% endif %}</td>
   <td class="num">{{ r.dob }}</td>
   <td>{{ r.nationality }}</td>
+  <td class="num">{{ r.id_number }}</td>
   <td>{% if r.match %}<span class="pill {{ r.risk_level }}">{{ r.risk_level }} · {{ r.risk_score }}</span>{% else %}<span class="pill low">clear</span>{% endif %}</td>
   {% if r.matches %}{% set m = r.matches[0] %}
   <td>{{ m.sanctioned_name }}{% if r.matches|length > 1 %} <span class="muted">+{{ r.matches|length - 1 }} more</span>{% endif %}

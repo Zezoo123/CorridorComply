@@ -1,0 +1,31 @@
+customer_id,full_name,date_of_birth,nationality,qid,type
+C-1001,Maria Clara Santos Reyes,1991-06-12,PH,28891234567,person
+C-1002,Jose Antonio Dela Cruz,1987-03-22,PH,28791234568,person
+C-1003,Angelica Mae Bautista,1995-11-08,PH,29591234569,person
+C-1004,Rahul Sharma,1988-11-30,IN,28835612345,person
+C-1005,Priya Venkatesan,1992-07-14,IN,29235612346,person
+C-1006,Arjun Krishnan Nair,1984-01-27,IN,28435612347,person
+C-1007,Muhammad Imran Khan,1990-05-03,PK,29058612348,person
+C-1008,Ayesha Bibi Malik,1993-09-19,PK,29358612349,person
+C-1009,Bilal Ahmed Chaudhry,1986-12-01,PK,28658612350,person
+C-1010,Mohammed Rafiqul Islam,1989-04-11,BD,28905012351,person
+C-1011,Shahnaz Parvin Akter,1994-08-25,BD,29405012352,person
+C-1012,Ahmed Mahmoud El Sayed,1982-02-17,EG,28281812353,person
+C-1013,Nour Hassan Abdelaziz,1996-10-30,EG,29681812354,person
+C-1014,Sameer Kumar Pradhan,1991-06-06,NP,29152412355,person
+C-1015,Sunita Devi Thapa,1990-12-12,NP,29052412356,person
+C-1016,Kiran Kumara Perera,1985-03-09,LK,28514412357,person
+C-1017,Jonathan Whitfield,1979-02-03,GB,27982612358,person
+C-1018,Hanna Katarina Lindqvist,1988-07-21,SE,28875212359,person
+C-1019,Fatima Zahra Benali,1993-01-15,MA,29350412360,person
+C-1020,Omar Khaled Al Hashimi,1980-09-02,JO,28040012361,person
+C-1021,Yusuf Emre Kaya,1987-05-28,TR,28779212362,person
+C-1022,Nguyen Thi Lan,1992-03-04,VN,29270412363,person
+C-1023,Siti Nurhaliza Rahman,1989-11-11,ID,28936012364,person
+C-1024,Grace Wanjiru Kamau,1990-02-26,KE,29040412365,person
+C-1025,Doha Trading and Contracting WLL,,QA,,entity
+C-1026,Lusail Marine Services WLL,,QA,,entity
+C-1027,Al Wakra Fresh Produce Co,,QA,,entity
+C-1028,Mohammed Reza Naghdi,1953-02-11,IR,,person
+C-1029,Saad Alkaabi,1972-02-15,QA,27263401275,person
+C-1030,Abdulrahman Omair Al Nuaimi,,QA,,person

@@ -58,6 +58,7 @@ class Candidate:
     match_type: str              # "name", "alias" or "identifier"
     dob_agreement: str           # exact | year | mismatch | unknown
     nationality_agreement: str   # match | mismatch | unknown
+    name_similarity: Optional[float] = None  # identifier hits: how well the name agrees as well
 
     def to_dict(self) -> Dict:
         e = self.entry
@@ -72,6 +73,7 @@ class Candidate:
             "listed_on": e.listed_on,
             "id_numbers": e.id_numbers or None,
             "similarity": round(self.similarity, 2),
+            "name_similarity": round(self.name_similarity, 2) if self.name_similarity is not None else None,
             "aliases": e.aliases[:10],
             "dob": format_dates(e.dob_dates, e.dob_years) or None,
             "dob_agreement": self.dob_agreement,
@@ -162,13 +164,17 @@ class ScreeningIndex:
         results: List[Candidate] = []
         # Exact identity-number matches first: a QID or passport number on a list is a
         # definite hit regardless of how the name was spelled.
+        # Some lists carry one number against several people (the Qatar NCTC record does), so
+        # every identifier hit also records how well the name agrees and the best name ranks first.
         id_hits = self.by_identifier(id_numbers or [])
         for i in id_hits:
             e = self.entries[i]
+            name_sim = max((fuzz.token_set_ratio(q, v) for v in e.variants), default=0.0) if q else None
             results.append(Candidate(
                 entry=e, similarity=100.0, matched_name=e.id_numbers, match_type="identifier",
                 dob_agreement=dob_agreement(query_dob, e.dob_dates, e.dob_years),
                 nationality_agreement=nationality_agreement(nationality, e.nationality_codes),
+                name_similarity=name_sim,
             ))
         if not q:
             return results[:limit]
@@ -193,7 +199,8 @@ class ScreeningIndex:
                 dob_agreement=dob_agreement(query_dob, e.dob_dates, e.dob_years),
                 nationality_agreement=nationality_agreement(nationality, e.nationality_codes),
             ))
-        results.sort(key=lambda c: (c.match_type != "identifier", -c.similarity, c.dob_agreement != "exact", c.entry.name))
+        results.sort(key=lambda c: (c.match_type != "identifier", -c.similarity, -(c.name_similarity or 0),
+                                    c.dob_agreement != "exact", c.entry.name))
         return results[:limit]
 
 

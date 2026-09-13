@@ -17,7 +17,9 @@ SAMPLE_CSV = (
 def test_detect_columns_recognises_common_headers():
     d = detect_columns(["Customer ID", "Full Name", "Date of Birth", "Country", "Type"])
     assert d == {"name": "Full Name", "dob": "Date of Birth", "nationality": "Country",
-                 "entity_type": "Type", "reference": "Customer ID"}
+                 "entity_type": "Type", "reference": "Customer ID", "id_number": None}
+    d = detect_columns(["Name", "QID", "Passport Number"])
+    assert d["id_number"] == "QID" and d["reference"] is None
 
 
 def test_read_table_sniffs_semicolons():
@@ -64,6 +66,30 @@ def test_upload_screens_rows_and_downloads_csv(client):
 
     assert client.get(f"/screen/{job_id}").status_code == 200
     assert client.get("/screen/does-not-exist").status_code == 404
+
+
+def test_upload_matches_identity_numbers(client, sanctions_data_dir):
+    """A QID column is matched exactly against the lists, whatever the name looks like; when one
+    number sits against several list entries, the entry whose name agrees best comes first."""
+    from tests.conftest import SAMPLE_COMBINED_CSV
+    from app.services.sanctions_loader import SanctionsLoader
+    rows = (
+        "QA_NCTC,nctc.json,13,QLDi.013,domestic,individual,SAAD SAAD MOHAMED SHERYAN AL KAABI,,,,,QATAR,,,,1972-02-15,1972,,QID: 27263401275; Passport: 00966737,NCTC,,2018-03-15,2026-09-08,2026-09-08\n"
+        "QA_NCTC,nctc.json,25,QLDi.025,domestic,individual,ABDULLAH MOHAMED SULEIMAN ALMOHESNI,,,,,SAUDI ARABIA,,,,1972-02-15,1972,,QID: 27263401275; Passport: K1633255,NCTC,,2018-03-15,2026-09-08,2026-09-08\n"
+    )
+    (sanctions_data_dir / "combined" / "combined_sanctions_20260913_235959.csv").write_text(SAMPLE_COMBINED_CSV + rows)
+    SanctionsLoader.clear_cache()
+    csv_text = "customer id,name,qid\nC-1,Saad Alkaabi,27263401275\nC-2,Rahul Sharma,28835612345\n"
+    r = client.post("/screen", files={"file": ("customers.csv", csv_text, "text/csv")})
+    assert r.status_code == 200
+    assert "<th>ID no.</th>" in r.text and "27263401275" in r.text
+    assert "SAAD SAAD MOHAMED SHERYAN AL KAABI" in r.text
+    assert r.text.index("SAAD SAAD MOHAMED SHERYAN AL KAABI") < r.text.index("ALMOHESNI")
+    job_id = r.text.split("report id <code>")[1].split("</code>")[0]
+    lines = client.get(f"/screen/{job_id}/report.csv").text.strip().splitlines()
+    assert lines[0].split(",")[5] == "id_number"
+    assert any("27263401275" in line and "identifier" in line for line in lines)
+    assert sum("Rahul Sharma" in line and ",no," in line for line in lines) == 1
 
 
 def test_upload_without_name_column_asks_for_mapping(client):
