@@ -7,11 +7,11 @@
 <form method="post" action="/screen" enctype="multipart/form-data">
   <label>Upload the same file again</label>
   <input type="file" name="file" accept=".csv,.xlsx,.xlsm,text/csv" required>
-  {% for field, label in [("name_col","Name (required)"),("dob_col","Date of birth"),("nat_col","Nationality / country"),("type_col","Type (person / entity / vessel)"),("ref_col","Your reference / ID")] %}
+  {% for field, label in [("name_col","Name (required)"),("dob_col","Date of birth"),("nat_col","Nationality / country"),("type_col","Type (person / entity / vessel)"),("ref_col","Your reference / ID"),("idnum_col","Identity number (QID / passport)")] %}
   <label for="{{ field }}">{{ label }}</label>
   <select id="{{ field }}" name="{{ field }}">
     <option value="">(none)</option>
-    {% for h in headers %}<option value="{{ h }}" {% if detected.get(field.replace('_col','').replace('nat','nationality').replace('type','entity_type').replace('ref','reference')) == h %}selected{% endif %}>{{ h }}</option>{% endfor %}
+    {% for h in headers %}<option value="{{ h }}" {% if detected.get(field.replace('_col','').replace('nat','nationality').replace('type','entity_type').replace('ref','reference').replace('idnum','id_number')) == h %}selected{% endif %}>{{ h }}</option>{% endfor %}
   </select>
   {% endfor %}
   <label for="default_type">Default type when no type column</label>

@@ -46,6 +46,9 @@ COLUMN_ALIASES = {
     "nationality": {"nationality", "country", "citizenship", "nation", "country of nationality", "residence", "country of residence"},
     "entity_type": {"type", "entity type", "entity_type", "customer type", "kind", "party type"},
     "reference": {"id", "reference", "ref", "customer id", "customer_id", "client id", "account", "account no", "account number", "row"},
+    "id_number": {"id number", "id no", "identity number", "identification number", "national id", "national id number",
+                  "qid", "qatar id", "qid number", "passport", "passport number", "passport no", "document number",
+                  "cnic", "aadhaar", "nid", "emirates id", "civil id", "iqama"},
 }
 
 
@@ -137,6 +140,7 @@ async def screen_upload(
     nat_col: str = Form(""),
     type_col: str = Form(""),
     ref_col: str = Form(""),
+    idnum_col: str = Form(""),
     default_type: str = Form("person"),
     monitor: str = Form(""),
     session: Session = Depends(get_session),
@@ -160,6 +164,7 @@ async def screen_upload(
         "nationality": nat_col or detected["nationality"],
         "entity_type": type_col or detected["entity_type"],
         "reference": ref_col or detected["reference"],
+        "id_number": idnum_col or detected["id_number"],
     }
     if not cols["name"] or cols["name"] not in headers:
         # Ask the user to map columns
@@ -179,7 +184,9 @@ async def screen_upload(
         nat = (row.get(cols["nationality"]) or "").strip() if cols["nationality"] else None
         et = _entity_type(row.get(cols["entity_type"]) or "") if cols["entity_type"] else _entity_type(default_type)
         ref = (row.get(cols["reference"]) or str(i)) if cols["reference"] else str(i)
-        r = AMLService.screen_sync(name, dob=dob or None, nationality=nat or None, entity_type=et)
+        id_number = (row.get(cols["id_number"]) or "").strip() if cols["id_number"] else ""
+        r = AMLService.screen_sync(name, dob=dob or None, nationality=nat or None, entity_type=et,
+                                   id_numbers=[id_number] if id_number else None)
         list_version = r["list_version"]
         customer = None
         if monitor:
@@ -189,7 +196,7 @@ async def screen_upload(
                                nationality=nat or None, entity_type=et, customer=customer)
         results.append({
             "row": i, "reference": ref, "name": name, "dob": dob or "", "nationality": nat or "",
-            "entity_type": et, "match": r["sanctions_match"], "risk_score": r["risk_score"],
+            "id_number": id_number, "entity_type": et, "match": r["sanctions_match"], "risk_score": r["risk_score"],
             "risk_level": r["risk_level"].value, "matches": r["matches"], "details": r["details"],
         })
 
@@ -257,13 +264,13 @@ async def screen_report_csv(job_id: str):
         raise HTTPException(404, "Report not found")
     buf = io.StringIO()
     w = csv.writer(buf)
-    w.writerow(["row", "reference", "name", "dob", "nationality", "entity_type", "match", "risk_score", "risk_level",
+    w.writerow(["row", "reference", "name", "dob", "nationality", "id_number", "entity_type", "match", "risk_score", "risk_level",
                 "best_match_name", "matched_on", "match_type", "similarity", "confidence", "source", "program",
                 "list_dob", "dob_agreement", "list_nationality", "country_match", "other_matches", "list_version"])
     for r in job["results"]:
         best = r["matches"][0] if r["matches"] else {}
         w.writerow([
-            r["row"], r["reference"], r["name"], r["dob"], r["nationality"], r["entity_type"],
+            r["row"], r["reference"], r["name"], r["dob"], r["nationality"], r.get("id_number", ""), r["entity_type"],
             "YES" if r["match"] else "no", r["risk_score"], r["risk_level"],
             best.get("sanctioned_name", ""), best.get("matched_name", ""), best.get("match_type", ""),
             best.get("similarity", ""), best.get("confidence", ""), best.get("source", ""), best.get("program", ""),
@@ -278,13 +285,13 @@ async def screen_report_csv(job_id: str):
 @router.get("/screen/sample/customers.csv")
 async def sample_csv():
     sample = (
-        "customer_id,full_name,date_of_birth,nationality,type\n"
-        "C-1001,Maria Clara Santos,1991-06-12,PH,person\n"
-        "C-1002,Ahmad Fuad Salim,1951-06-19,EG,person\n"
-        "C-1003,Jonathan Whitfield,1979-02-03,GB,person\n"
-        "C-1004,Bank Mellat,,IR,entity\n"
-        "C-1005,Muhammad Reza Naghdi,1953-03-11,IR,person\n"
-        "C-1006,Rahul Sharma,1988-11-30,IN,person\n"
+        "customer_id,full_name,date_of_birth,nationality,id_number,type\n"
+        "C-1001,Maria Clara Santos,1991-06-12,PH,,person\n"
+        "C-1002,Ahmad Fuad Salim,1951-06-19,EG,,person\n"
+        "C-1003,Jonathan Whitfield,1979-02-03,GB,,person\n"
+        "C-1004,Bank Mellat,,IR,,entity\n"
+        "C-1005,Muhammad Reza Naghdi,1953-03-11,IR,,person\n"
+        "C-1006,Rahul Sharma,1988-11-30,IN,,person\n"
     )
     return Response(sample, media_type="text/csv", headers={"Content-Disposition": 'attachment; filename="sample_customers.csv"'})
 

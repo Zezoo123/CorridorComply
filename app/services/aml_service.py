@@ -27,7 +27,8 @@ class AMLService:
                 key = f"{c.entry.source}:{c.entry.dataid}"
                 if key not in best or c.similarity > best[key].similarity:
                     best[key] = c
-        candidates = sorted(best.values(), key=lambda c: (c.match_type != "identifier", -c.similarity, c.dob_agreement != "exact", c.entry.name))[:25]
+        candidates = sorted(best.values(), key=lambda c: (c.match_type != "identifier", -c.similarity, -(c.name_similarity or 0),
+                                                           c.dob_agreement != "exact", c.entry.name))[:25]
 
         matches: List[Dict[str, Any]] = []
         for c in candidates:

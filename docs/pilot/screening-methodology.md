@@ -106,3 +106,7 @@ No PEP data and no adverse media without a licensed feed. No ownership analysis
 (OFAC 50 percent rule). No transaction monitoring. No document forgery
 detection; liveness only through a configured vendor. Each is stated to the
 customer in writing.
+
+## Identity-number matches
+
+When a customer identity number (QID, passport, CNIC, Aadhaar, national ID) is supplied, it is compared exactly against the numbers held on the lists, after stripping spaces and punctuation. An identity-number hit is reported as `match_type: identifier` with similarity 100, whatever the spelling of the name. Each such hit also carries `name_similarity`, how well the customer's name agrees with the listed name, and when one number sits against several list entries the entry whose name agrees best is reported first. That situation is real: the Qatar NCTC unified record published by the Ministry of Interior carries the same Qatari ID and date of birth against three different individuals (QLDi.013, QLDi.024, QLDi.025). The tool reports all three and leaves the decision to the reviewer rather than hiding what the source says.

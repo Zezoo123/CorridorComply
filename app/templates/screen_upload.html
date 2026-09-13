@@ -1,7 +1,7 @@
 {% extends "_base.html" %}
 {% block content %}
 <h1>Screen a customer file</h1>
-<p class="sub">Upload a CSV or XLSX with one customer per row. A column called <code>name</code> (or <code>full name</code>, <code>customer</code>, <code>company</code>) is required. <code>date of birth</code>, <code>nationality</code>, <code>type</code> (person/entity/vessel) and an <code>id</code> column are used when present.</p>
+<p class="sub">Upload a CSV or XLSX with one customer per row. A column called <code>name</code> (or <code>full name</code>, <code>customer</code>, <code>company</code>) is required. <code>date of birth</code>, <code>nationality</code>, <code>type</code> (person/entity/vessel), a <code>customer id</code> reference and an identity-number column (<code>qid</code>, <code>passport</code>, <code>id number</code>) are used when present; identity numbers are matched exactly against the lists.</p>
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
 {% if notice %}<div class="card" style="border-color:var(--accent);background:var(--accent-soft)">{{ notice }}</div>{% endif %}
 <div class="card">

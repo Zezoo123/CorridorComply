@@ -39,7 +39,7 @@ FastAPI routers:
 - `/api/v1/aml/screen` and `/api/v1/aml/screen/batch` - Sanctions screening against consolidated lists
 - `/api/v1/risk/combined` - Combined risk scoring
 - `/api/v1/customers`, `/api/v1/monitoring/rescreen`, `/api/v1/alerts`, `/api/v1/screenings`, `/api/v1/tenant`, `/api/v1/lists/current` (`records.py`) - persistence and ongoing monitoring
-- `/screen`, `/alerts`, `/review` (`screen_ui.py`) - Jinja2 UI: upload a customer file, alerts, and the review console (queue, case page, disposition with mandatory reason). `POST /api/v1/decisions/{id}/disposition`, `GET /api/v1/customers/{ref}/evidence` (migration 0003 adds disposition columns). The UI acts for one tenant (`UI_TENANT`, default `default`).
+- `/screen`, `/alerts`, `/review` (`screen_ui.py`) - Jinja2 UI: upload a customer file (name, DOB, nationality, type, reference and an identity-number column such as `qid`/`passport`, matched exactly), alerts, and the review console (queue, case page, disposition with mandatory reason). `POST /api/v1/decisions/{id}/disposition`, `GET /api/v1/customers/{ref}/evidence` (migration 0003 adds disposition columns). The UI acts for one tenant (`UI_TENANT`, default `default`).
 
 `/api/v1/*` routes require `X-API-Key` when keys are configured (`app/auth.py`, `API_KEYS` / `API_KEYS_FILE`); the tenant lands in `request.state.tenant` and in every audit event.
 
