@@ -111,7 +111,11 @@ def analyze(name: str, nationality: Optional[str] = None) -> NameAnalysis:
         # lists often hold first + family. Try dropping the middle token.
         variants.append(" ".join([tokens[0], tokens[-1]]))
 
-    # Dedupe, keep order
+    # Dedupe, keep order; never offer a variant that ends in a bare particle ("ahmed el").
+    from ..core.names import PARTICLES
     seen = set()
-    a.variants = [v for v in variants if v and not (v in seen or seen.add(v))]
+    a.variants = [v for v in variants
+                  if v and v.split()[-1] not in PARTICLES and not (v in seen or seen.add(v))]
+    if not a.variants and full:
+        a.variants = [full]
     return a

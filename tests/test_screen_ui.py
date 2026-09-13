@@ -52,7 +52,9 @@ def test_upload_screens_rows_and_downloads_csv(client):
     assert "BANK MELLAT" in r.text                  # entity typed row
     assert "Jonathan Whitfield" in r.text
     # 4 screened rows (the blank-name row is skipped); 3 hits: the Naqdi alias, the Mellat entity,
-    # and "Maria Clara Santos" (Filipino middle name dropped by name-variant screening -> MARIA SANTOS).
+    # and "Maria Clara Santos", which reaches MARIA SANTOS only through the dropped Filipino middle
+    # name and is kept because the date of birth agrees exactly (see test_namesakes for the
+    # cases that are dropped).
     assert "MARIA SANTOS" in r.text
     assert "<b>4</b>" in r.text and "<b>3</b>" in r.text
     job_id = r.text.split("report id <code>")[1].split("</code>")[0]

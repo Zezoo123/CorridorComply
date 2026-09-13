@@ -86,7 +86,7 @@ Heavy ML imports (EasyOCR, DeepFace, OpenCV) are lazy, inside `KYCService.proces
 ## Key Patterns
 
 ### Risk Scoring
-Risk scores are 0-100. Thresholds: HIGH ≥70, MEDIUM ≥40, LOW <40. `RiskEngine` in `risk_engine.py` is the only place scores are computed: `KYCService` and the combined route call it rather than scoring inline. An AML match whose DOB disagrees with every candidate is demoted.
+Risk scores are 0-100. Thresholds: HIGH ≥70, MEDIUM ≥40, LOW <40. `RiskEngine` in `risk_engine.py` is the only place scores are computed: `KYCService` and the combined route call it rather than scoring inline. DOB and nationality evidence is taken from the strongest candidate: exact DOB +10, year +5, mismatch -25, country match +5 / mismatch -5. Hits found only through a shortened name variant (`app/corridor/names.py`) are re-scored on the full name and kept below threshold only when corroborated (`_corroborated` in `aml_service.py`); the match carries `screened_as` and `variant_similarity`. Honorifics such as Sayed/Hafiz are stripped only when leading.
 
 ### Request IDs
 All endpoints accept `X-Request-ID` header for tracing. If not provided, generates `req_{uuid8}` format.
