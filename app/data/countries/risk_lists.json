@@ -1,18 +1,24 @@
 {
-  "_comment": "Country risk lists used by the corridor engine. FATF publishes these three times a year (February, June, October plenaries) and has no machine-readable feed: update by hand from fatf-gafi.org and record the plenary date. EU list: Commission Delegated Regulation on high-risk third countries; update from eur-lex. Verify before each pilot.",
+  "_comment": "Country risk lists used by the corridor engine. FATF publishes these three times a year (February, June, October plenaries) and has no machine-readable feed: update by hand from fatf-gafi.org after each plenary and record the date. EU list: Annex to Commission Delegated Regulation (EU) 2016/1675 as amended (consolidated text on EUR-Lex). Verified 2026-09-13.",
   "fatf_call_for_action": {
-    "as_of": "2025-10",
-    "source": "FATF, High-Risk Jurisdictions subject to a Call for Action",
+    "as_of": "2026-06-19",
+    "source": "FATF, High-Risk Jurisdictions subject to a Call for Action, plenary of 17-19 June 2026",
     "countries": ["KP", "IR", "MM"]
   },
   "fatf_increased_monitoring": {
-    "as_of": "2025-10",
-    "source": "FATF, Jurisdictions under Increased Monitoring (the 'grey list'); VERIFY against the latest plenary statement before use",
-    "countries": ["DZ", "AO", "BO", "BG", "CM", "CI", "CD", "HT", "KE", "LA", "LB", "MC", "NA", "NP", "SS", "SY", "VE", "VN", "VG", "YE"]
+    "as_of": "2026-06-19",
+    "source": "FATF, Jurisdictions under Increased Monitoring, plenary of 17-19 June 2026 (22 jurisdictions; Bosnia and Herzegovina and Iraq added, Algeria and Namibia removed). Next plenary: October 2026.",
+    "countries": ["AO", "BO", "BA", "BG", "CM", "CI", "CD", "HT", "IQ", "KE", "KW", "LA", "LB", "MC", "NP", "PG", "SS", "SY", "VE", "VN", "VG", "YE"]
   },
   "eu_high_risk_third_countries": {
-    "as_of": "unverified",
-    "source": "Commission Delegated Regulation (EU) 2016/1675 as amended; populate from the current annex",
-    "countries": []
+    "as_of": "2026-01-29",
+    "source": "Annex to Commission Delegated Regulation (EU) 2016/1675, consolidated 29 January 2026 (amended by Delegated Regulations (EU) 2026/46 and 2026/83). Points I-IV.",
+    "countries": ["AF", "DZ", "AO", "BO", "VG", "CM", "CI", "CD", "HT", "KE", "LA", "LB", "MC", "MM", "NA", "NP", "SS", "SY", "TT", "VU", "VE", "VN", "YE", "IR", "KP", "RU"],
+    "sections": {
+      "I_action_plan": ["AF", "DZ", "AO", "BO", "VG", "CM", "CI", "CD", "HT", "KE", "LA", "LB", "MC", "MM", "NA", "NP", "SS", "SY", "TT", "VU", "VE", "VN", "YE"],
+      "II_technical_assistance": ["IR"],
+      "III_ongoing_substantial_risk": ["KP"],
+      "IV_fatf_membership_suspended": ["RU"]
+    }
   }
 }

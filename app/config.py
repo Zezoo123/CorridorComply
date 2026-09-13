@@ -23,6 +23,9 @@ CORS_ORIGINS: List[str] = [o.strip() for o in os.getenv("CORS_ORIGINS", "").spli
 
 # Tenant used when the API runs open (no keys configured) and by the web UI
 DEFAULT_TENANT = os.getenv("UI_TENANT", "default")
+# Web UI login (HTTP Basic). Set both to require a login on /screen, /review, /alerts.
+UI_USERNAME = os.getenv("UI_USERNAME", "")
+UI_PASSWORD = os.getenv("UI_PASSWORD", "")
 
 # Sanctions data location (contains raw/, normalized/, combined/)
 SANCTIONS_DATA_DIR = Path(os.getenv("SANCTIONS_DATA_DIR", str(BASE_DIR / "app" / "data" / "sanctions")))

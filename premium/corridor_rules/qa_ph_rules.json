@@ -929,6 +929,31 @@
         "escalate_mlro"
       ],
       "basis": "Firm policy; QCB AML/CFT Instructions 10.1-10.2 (customer risk policies)"
+    },
+    {
+      "id": "eu-high-risk-third-country",
+      "title": "Sender or payout country on the EU high-risk third-country list",
+      "when": {
+        "any": [
+          {
+            "field": "customer.country_risk",
+            "op": "eq",
+            "value": "eu_high_risk"
+          },
+          {
+            "field": "beneficiary.country_risk",
+            "op": "eq",
+            "value": "eu_high_risk"
+          }
+        ]
+      },
+      "outcome": "review",
+      "risk_add": 10,
+      "reason": "A country on the EU list of high-risk third countries is involved (this includes Russia, whose FATF membership is suspended). Euro-clearing correspondents apply enhanced due diligence; record it.",
+      "actions": [
+        "enhanced_due_diligence"
+      ],
+      "basis": "Commission Delegated Regulation (EU) 2016/1675 as amended (consolidated 2026-01-29); FATF R.19"
     }
   ],
   "reporting": {

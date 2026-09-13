@@ -67,8 +67,10 @@ def test_risk_lists_are_dated_and_used():
     lists = risk_lists()
     assert lists["fatf_call_for_action"]["as_of"] and set(lists["fatf_call_for_action"]["countries"]) == {"KP", "IR", "MM"}
     assert country_risk("IR") == "call_for_action"
-    assert country_risk("YE") == "increased_monitoring"
-    assert country_risk("PH") is None and country_risk(None) is None
+    assert country_risk("YE") == "increased_monitoring" and country_risk("KW") == "increased_monitoring"
+    assert country_risk("RU") == "eu_high_risk" and country_risk("TT") == "eu_high_risk"
+    assert country_risk("PH") is None and country_risk("DZ") == "eu_high_risk" and country_risk(None) is None
+    assert lists["fatf_increased_monitoring"]["as_of"] == "2026-06-19" and len(lists["fatf_increased_monitoring"]["countries"]) == 22
 
 
 def test_country_risk_rules(client):

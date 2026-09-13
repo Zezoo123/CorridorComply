@@ -23,7 +23,7 @@ import sys
 from typing import Dict, Optional
 
 from fastapi import Depends, HTTPException, Request, status
-from fastapi.security import APIKeyHeader
+from fastapi.security import APIKeyHeader, HTTPBasic, HTTPBasicCredentials
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +103,26 @@ async def require_api_key(request: Request, key: Optional[str] = Depends(_header
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
     request.state.tenant = tenant
     return tenant
+
+
+_basic = HTTPBasic(auto_error=False)
+
+
+def ui_is_protected() -> bool:
+    from .config import UI_PASSWORD, UI_USERNAME
+    return bool(UI_USERNAME and UI_PASSWORD)
+
+
+async def require_ui_login(request: Request, creds: Optional[HTTPBasicCredentials] = Depends(_basic)) -> Optional[str]:
+    """HTTP Basic login for the web UI when UI_USERNAME/UI_PASSWORD are set; open otherwise (dev)."""
+    from .config import UI_PASSWORD, UI_USERNAME
+    if not ui_is_protected():
+        return None
+    if creds is None or not (secrets.compare_digest(creds.username, UI_USERNAME) and secrets.compare_digest(creds.password, UI_PASSWORD)):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Login required",
+                            headers={"WWW-Authenticate": 'Basic realm="CorridorComply"'})
+    request.state.ui_user = creds.username
+    return creds.username
 
 
 def new_key() -> str:

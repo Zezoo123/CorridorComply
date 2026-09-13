@@ -110,7 +110,10 @@ deadline for RTCs, and the receiving partner's own beneficiary rules.
 Adds beneficiary screening rules (`beneficiary-listed`, `beneficiary-identifier-match`,
 `beneficiary-possible-match`), country-risk rules driven by
 `app/data/countries/risk_lists.json` (FATF call-for-action and increased
-monitoring, dated), an internal-watchlist rule, and OFAC's non-SDN consolidated
+monitoring as of the 19 June 2026 plenary, 22 grey-listed jurisdictions
+including Kuwait, Iraq, Lebanon, Syria and Yemen; EU high-risk third countries
+as consolidated on 29 January 2026, which also carries Russia in its own
+category), an internal-watchlist rule, and OFAC's non-SDN consolidated
 list in the screening policy. 29 rules.
 
 ## Version 0.2 of QA-PH

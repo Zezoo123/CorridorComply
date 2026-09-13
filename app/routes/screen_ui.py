@@ -342,6 +342,7 @@ async def review_disposition(request: Request, decision_id: int, outcome: str = 
     d = records.get_decision(session, UI_TENANT, decision_id)
     if d is None:
         raise HTTPException(404, "Decision not found")
+    by = by or getattr(request.state, "ui_user", "") or ""
     try:
         records.disposition(session, UI_TENANT, decision_id, outcome, reason, by)
     except ValueError as e:

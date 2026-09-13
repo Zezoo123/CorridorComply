@@ -6,7 +6,7 @@ from fastapi import Depends, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from .core.logger import setup_logging
 from .middleware.logging_middleware import log_requests_middleware
-from .auth import require_api_key, load_keys
+from .auth import require_api_key, require_ui_login, load_keys, ui_is_protected
 
 # Set up logging first
 setup_logging()
@@ -44,7 +44,9 @@ app.include_router(aml.router, prefix="/api/v1/aml", tags=["AML"], dependencies=
 app.include_router(risk.router, prefix="/api/v1/risk", tags=["Risk"], dependencies=protected)
 app.include_router(records_routes.router, prefix="/api/v1", tags=["Customers & Monitoring"], dependencies=protected)
 app.include_router(corridor_routes.router, prefix="/api/v1", tags=["Corridor decisions"], dependencies=protected)
-app.include_router(screen_ui.router, tags=["Screening UI"])
+app.include_router(screen_ui.router, tags=["Screening UI"], dependencies=[Depends(require_ui_login)])
+if not ui_is_protected():
+    logger.warning("Web UI has no login (set UI_USERNAME and UI_PASSWORD). Keep it on a private network.")
 load_keys()  # warn at startup if the API is open
 
 # Startup event: Check and update sanctions lists if needed
