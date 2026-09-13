@@ -3,6 +3,7 @@
 <h1>Screen a customer file</h1>
 <p class="sub">Upload a CSV or XLSX with one customer per row. A column called <code>name</code> (or <code>full name</code>, <code>customer</code>, <code>company</code>) is required. <code>date of birth</code>, <code>nationality</code>, <code>type</code> (person/entity/vessel) and an <code>id</code> column are used when present.</p>
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
+{% if notice %}<div class="card" style="border-color:var(--accent);background:var(--accent-soft)">{{ notice }}</div>{% endif %}
 <div class="card">
 <form method="post" action="/screen" enctype="multipart/form-data">
   <label for="file">Customer file (.csv or .xlsx, up to 20,000 rows)</label>
@@ -18,6 +19,15 @@
     <button type="submit">Screen file</button>
     <a class="btn secondary" href="/screen/sample/customers.csv">Download a sample file</a>
   </div>
+</form>
+</div>
+<h2>Your internal watchlist</h2>
+<p class="sub">{% if internal_list.present %}{{ internal_list.entries }} entries loaded (source INTERNAL), updated {{ internal_list.updated[:16].replace('T',' ') }}.{% else %}None loaded.{% endif %} Upload a CSV with columns <code>name</code> (required), <code>aliases</code>, <code>type</code>, <code>dob</code>, <code>nationality</code>, <code>id_numbers</code>, <code>reason</code>, <code>reference</code>. Previously rejected customers, names from QCB circulars, FIU requests. Replaces the current list and rebuilds the combined file.</p>
+<div class="card">
+<form method="post" action="/screen/internal-list" enctype="multipart/form-data">
+  <label for="ifile">Internal watchlist (.csv)</label>
+  <input id="ifile" type="file" name="file" accept=".csv,text/csv" required>
+  <div style="margin-top:12px"><button type="submit" class="btn secondary">Replace internal watchlist</button></div>
 </form>
 </div>
 <h2>What you get</h2>

@@ -47,6 +47,12 @@ UN_URL = "https://scsanctions.un.org/resources/xml/en/consolidated.xml"
 OFAC_SDN_URL = "https://www.treasury.gov/ofac/downloads/sdn.csv"
 OFAC_ALT_URL = "https://www.treasury.gov/ofac/downloads/alt.csv"
 OFAC_ADD_URL = "https://www.treasury.gov/ofac/downloads/add.csv"
+# OFAC Consolidated (non-SDN) list: same layout as the SDN files
+OFAC_CONS_URLS = [
+    ("https://www.treasury.gov/ofac/downloads/consolidated/cons_prim.csv", "cons_prim.csv"),
+    ("https://www.treasury.gov/ofac/downloads/consolidated/cons_alt.csv", "cons_alt.csv"),
+    ("https://www.treasury.gov/ofac/downloads/consolidated/cons_add.csv", "cons_add.csv"),
+]
 
 # UK and EU sanctions URLs
 UK_SANCTIONS_URL = "https://search-uk-sanctions-list.service.gov.uk/"
@@ -147,6 +153,18 @@ def download_ofac_sanctions() -> Tuple[bool, list[Path]]:
 
 
 UK_CONLIST_URL = "https://ofsistorage.blob.core.windows.net/publishlive/2022format/ConList.csv"
+
+
+def download_ofac_consolidated() -> Tuple[bool, list]:
+    """Download the OFAC Consolidated (non-SDN) list files."""
+    output_dir = RAW_DIR / "ofac_cons"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    got = []
+    for url, filename in OFAC_CONS_URLS:
+        ok, _ = download_file(url, output_dir / filename)
+        if ok:
+            got.append(output_dir / filename)
+    return (len(got) == len(OFAC_CONS_URLS)), got
 
 
 def download_uk_sanctions() -> Tuple[bool, Optional[Path]]:
@@ -334,7 +352,7 @@ def update_sanctions_lists(force: bool = False) -> int:
     NORMALIZED_DIR.mkdir(parents=True, exist_ok=True)
     COMBINED_DIR.mkdir(parents=True, exist_ok=True)
     
-    results = {'un': False, 'ofac': False, 'uk': False, 'eu': False, 'qa_nctc': False}
+    results = {'un': False, 'ofac': False, 'ofac_cons': False, 'uk': False, 'eu': False, 'qa_nctc': False}
     
     # Download UN sanctions
     logger.info("\n" + "-"*70)
@@ -350,6 +368,13 @@ def update_sanctions_lists(force: bool = False) -> int:
     ofac_success, ofac_files = download_ofac_sanctions()
     results['ofac'] = ofac_success
     
+    # Download OFAC consolidated (non-SDN) list
+    logger.info("\n" + "-"*70)
+    logger.info("2b. Downloading OFAC Consolidated (non-SDN) List")
+    logger.info("-"*70)
+    cons_success, _ = download_ofac_consolidated()
+    results['ofac_cons'] = cons_success
+
     # Download UK sanctions
     logger.info("\n" + "-"*70)
     logger.info("3. Downloading UK Sanctions")
@@ -402,6 +427,15 @@ def update_sanctions_lists(force: bool = False) -> int:
         logger.warning("Skipping EU conversion (no file available)")
         conversion_results['eu'] = False
     
+    if results['ofac_cons']:
+        conversion_results['ofac_cons'] = run_conversion_script("convert_ofac_cons_to_csv.py")
+    else:
+        logger.warning("Skipping OFAC consolidated conversion (download failed)")
+        conversion_results['ofac_cons'] = False
+
+    # The firm's own watchlist (raw/internal/*.csv) is converted when present
+    conversion_results['internal'] = run_conversion_script("convert_internal_to_csv.py")
+
     if results['qa_nctc']:
         conversion_results['qa_nctc'] = run_conversion_script("convert_qa_nctc_to_csv.py")
     else:

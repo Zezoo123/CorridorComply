@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from ..core.dates import parse_iso_date
+from ..data.countries import country_risk
 from .identifiers import check_id
 from .names import analyze
 from .schema import Condition, Rule, Ruleset, Severity, When
@@ -108,13 +109,23 @@ def _age(dob: Optional[str]) -> Optional[int]:
     return today.year - d.year - ((today.month, today.day) < (d.month, d.day))
 
 
+def _worst_risk(*codes: Optional[str]) -> Optional[str]:
+    order = {"call_for_action": 3, "increased_monitoring": 2, "eu_high_risk": 1}
+    risks = [country_risk(c) for c in codes if c]
+    risks = [r for r in risks if r]
+    return max(risks, key=lambda r: order[r]) if risks else None
+
+
 def build_facts(ruleset: Ruleset, customer: Dict[str, Any], screening: Dict[str, Any],
                 kyc: Optional[Dict[str, Any]] = None, beneficiary: Optional[Dict[str, Any]] = None,
-                transfer: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+                transfer: Optional[Dict[str, Any]] = None,
+                beneficiary_screening: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Flatten inputs into the dotted fields the rules reference."""
     kyc = kyc or {}
     beneficiary = beneficiary or {}
     transfer = transfer or {}
+    bs = beneficiary_screening or {}
+    bbest = (bs.get("matches") or [None])[0] if bs else None
     ctype = customer.get("entity_type", "person")
     nat = (customer.get("nationality") or "").upper() or None
 
@@ -172,10 +183,18 @@ def build_facts(ruleset: Ruleset, customer: Dict[str, Any], screening: Dict[str,
         "beneficiary.present": bool(beneficiary),
         "beneficiary.id_valid": ben_id.valid if ben_id else None,
         "beneficiary.country": (beneficiary.get("country") or "").upper() or None,
+        "beneficiary.country_risk": _worst_risk(beneficiary.get("country")),
         "beneficiary.missing_fields": ben_missing,
+        "beneficiary.screening.match": bool(bs.get("sanctions_match")) if bs else None,
+        "beneficiary.screening.match_count": len(bs.get("matches") or []) if bs else 0,
+        "beneficiary.screening.best_confidence": bbest.get("confidence") if bbest else None,
+        "beneficiary.screening.best_dob_agreement": bbest.get("dob_agreement") if bbest else None,
+        "beneficiary.screening.best_match_type": bbest.get("match_type") if bbest else None,
+        "beneficiary.screening.best_source": bbest.get("source") if bbest else None,
         "customer.pep": customer.get("pep"),
         "customer.is_resident": customer.get("is_resident") if customer.get("is_resident") is not None else (True if id_type == "qatar_id" else None),
         "customer.first_transaction": customer.get("first_transaction"),
+        "customer.country_risk": _worst_risk(nat, customer.get("residence_country")),
         "transfer.amount": transfer.get("amount"),
         "transfer.receive_amount": transfer.get("receive_amount"),
         "transfer.purpose": transfer.get("purpose"),
@@ -235,15 +254,16 @@ def _when(w: When, facts: Dict[str, Any]) -> bool:
 
 def decide(ruleset: Ruleset, customer: Dict[str, Any], screening: Dict[str, Any],
            kyc: Optional[Dict[str, Any]] = None, beneficiary: Optional[Dict[str, Any]] = None,
-           transfer: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    facts = build_facts(ruleset, customer, screening, kyc, beneficiary, transfer)
+           transfer: Optional[Dict[str, Any]] = None,
+           beneficiary_screening: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    facts = build_facts(ruleset, customer, screening, kyc, beneficiary, transfer, beneficiary_screening)
     fired: List[Rule] = [r for r in ruleset.rules if _when(r.when, facts)]
 
     outcome = "approve"
     for r in fired:
         if Severity[r.outcome] > Severity[outcome]:
             outcome = r.outcome
-    base = int(screening.get("risk_score", 0) or 0)
+    base = max(int(screening.get("risk_score", 0) or 0), int((beneficiary_screening or {}).get("risk_score", 0) or 0))
     risk = max(0, min(100, base + sum(r.risk_add for r in fired)))
     actions: List[str] = []
     for r in fired:

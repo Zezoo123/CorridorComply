@@ -58,7 +58,7 @@ FastAPI routers:
 - `engine.py` - `RulesetRegistry` loads `premium/corridor_rules/*.json` (or `CORRIDOR_RULES_DIR`); `decide()` builds facts and fires every matching rule; outcome is the most severe.
 - `identifiers.py` - ID-number validators: `qatar_id` (birth year + nationality), `pk_cnic`, `in_aadhaar` (Verhoeff), `bd_nid`, `ph_philsys`, passports.
 - `names.py` - Population-aware name variants and flags; used by `AMLService.screen_sync` when `use_variants` is on.
-- Routes in `app/routes/corridor.py`: `/api/v1/decision`, `/api/v1/decisions`, `/api/v1/corridors`. Decisions persist in the `decisions` table (migration 0002).
+- Routes in `app/routes/corridor.py`: `/api/v1/decision` (screens the sender AND the beneficiary; both screenings persisted, migration 0004 adds `beneficiary_screening_id`), `/api/v1/decisions`, `/api/v1/corridors`. Decisions persist in the `decisions` table (migration 0002).
 - Tests use `tests/data/corridor_rules/` via `CORRIDOR_RULES_DIR` and `reset_registry()`.
 
 ### Database (`app/db/`)
@@ -77,7 +77,7 @@ SQLAlchemy 2 models in `models.py`; lazy engine in `database.py` (`DATABASE_URL`
 ### Sanctions Data Pipeline
 Raw data in `app/data/sanctions/raw/{un,ofac,uk,eu}/` is converted by `scripts/convert_*.py` to normalized CSVs in `normalized/`, then combined into `combined/combined_sanctions_*.csv` (the combiner keeps the newest three). The loader picks the latest combined file by modification time and caches it in memory. `SANCTIONS_DATA_DIR` overrides the data location; tests use a temp dir via the `sanctions_data_dir` fixture.
 
-Sources: UN, OFAC, UK (OFSI ConList), EU, QA_NCTC (Qatar NCTC unified record from the MOI portal JSON; `scripts/convert_qa_nctc_to_csv.py`). The screening index also matches identity numbers (`identifier_keys`, `match_type: identifier`).
+Sources: UN, OFAC, OFAC_CONS (non-SDN consolidated; `scripts/convert_ofac_cons_to_csv.py` reuses the SDN parser), UK (OFSI ConList), EU, QA_NCTC (Qatar NCTC unified record from the MOI portal JSON; `scripts/convert_qa_nctc_to_csv.py`), INTERNAL (the firm's watchlist; `app/services/lists.py` installs it from an upload and rebuilds the combined file in-app, honouring `SANCTIONS_DATA_DIR`). The screening index also matches identity numbers (`identifier_keys`, `match_type: identifier`). Country risk: `app/data/countries/risk_lists.json` (FATF lists, dated) via `country_risk()`.
 
 Converters: OFAC dates of birth are parsed from the SDN `remarks` column; the EU file carries birth dates on separate rows of an entity group; the UK search-service export has no DOB or nationality (the OFSI ConList.csv does, see the tracker).
 

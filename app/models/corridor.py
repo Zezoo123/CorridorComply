@@ -29,6 +29,7 @@ class CustomerIn(BaseModel):
 class BeneficiaryIn(BaseModel):
     full_name: str = Field(..., min_length=1, max_length=500)
     country: str = Field(..., min_length=2, max_length=2)
+    entity_type: EntityType = "person"
     relationship: Optional[str] = None
     payout_channel: Optional[str] = None
     id_type: Optional[str] = None
@@ -74,6 +75,8 @@ class DecisionResponse(BaseModel):
     actions: List[str]
     screening: Dict[str, Any]
     screening_id: Optional[int] = None
+    beneficiary_screening: Optional[Dict[str, Any]] = Field(None, description="The beneficiary screened against the same lists")
+    beneficiary_screening_id: Optional[int] = None
     list_version: Optional[str] = None
     id_check: Optional[Dict[str, Any]] = None
     beneficiary_id_check: Optional[Dict[str, Any]] = None

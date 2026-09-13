@@ -251,11 +251,13 @@ def customer_to_dict(c: Customer, last: Optional[Screening] = None) -> Dict[str,
 # ---------------------------------------------------------------- decisions
 def save_decision(session: Session, tenant_slug: str, decision: Dict[str, Any], *, customer_data: Dict[str, Any],
                   beneficiary_data: Optional[Dict[str, Any]] = None, screening: Optional[Screening] = None,
-                  customer: Optional[Customer] = None, request_id: Optional[str] = None) -> Decision:
+                  customer: Optional[Customer] = None, request_id: Optional[str] = None,
+                  beneficiary_screening: Optional[Screening] = None) -> Decision:
     tenant = get_or_create_tenant(session, tenant_slug)
     row = Decision(
         tenant_id=tenant.id, customer_id=customer.id if customer else None,
         screening_id=screening.id if screening else None, request_id=request_id,
+        beneficiary_screening_id=beneficiary_screening.id if beneficiary_screening else None,
         corridor=decision["corridor"], ruleset_version=decision["ruleset_version"],
         ruleset_status=decision["ruleset_status"], outcome=decision["outcome"],
         risk_score=int(decision["risk_score"]), reasons=decision["reasons"], actions=decision["actions"],
@@ -342,6 +344,7 @@ def decision_to_dict(d: Decision) -> Dict[str, Any]:
         "ruleset_status": d.ruleset_status, "outcome": d.outcome, "risk_score": d.risk_score, "reasons": d.reasons,
         "actions": d.actions, "facts": d.facts, "customer": d.customer_data, "beneficiary": d.beneficiary_data,
         "screening_id": d.screening_id, "customer_id": d.customer_id,
+        "beneficiary_screening_id": d.beneficiary_screening_id,
         "list_version": d.screening.list_version.label if d.screening else None,
         "created_at": d.created_at.isoformat(),
         "disposition": d.disposition, "disposition_reason": d.disposition_reason, "disposition_by": d.disposition_by,

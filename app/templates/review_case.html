@@ -53,6 +53,17 @@
 {% else %}<p class="muted">No similar name or identifier on any list.</p>{% endif %}
 {% else %}<p class="muted">No screening attached.</p>{% endif %}
 
+{% if beneficiary_screening %}
+<h2>Beneficiary screening</h2>
+<p class="meta">{{ beneficiary_screening.full_name }} · {{ beneficiary_screening.match_count }} match{{ '' if beneficiary_screening.match_count == 1 else 'es' }} · list <code>{{ beneficiary_screening.list_version }}</code></p>
+{% if beneficiary_screening.matches %}
+<div class="tablewrap"><table>
+<thead><tr><th>Listed name</th><th>Matched on</th><th>Score</th><th>DOB</th><th>List</th></tr></thead>
+<tbody>{% for m in beneficiary_screening.matches %}<tr><td><strong>{{ m.sanctioned_name }}</strong></td><td>{{ m.matched_name }} <span class="pill info">{{ m.match_type }}</span></td><td class="num">{{ m.similarity }} <span class="muted">{{ m.confidence }}</span></td><td>{{ m.dob_agreement }}</td><td>{{ m.source }}<div class="muted">{{ m.program or '' }}</div></td></tr>{% endfor %}</tbody>
+</table></div>
+{% else %}<p class="muted">No similar name or identifier on any list.</p>{% endif %}
+{% endif %}
+
 <div class="cols" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
 <div class="card"><h2 style="margin-top:0">Customer as submitted</h2>
 <table>{% for k, v in d.customer.items() %}<tr><th style="width:40%">{{ k }}</th><td>{{ v }}</td></tr>{% endfor %}</table>

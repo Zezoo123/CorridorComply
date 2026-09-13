@@ -6,14 +6,38 @@ AML manual.
 
 ## Reference data
 
-Lists loaded: UN Security Council consolidated list; OFAC SDN; UK OFSI
-consolidated list; EU consolidated financial sanctions list; Qatar NCTC unified
-record (UNSC designations as applied in Qatar and domestic designations by
-Public Prosecutor order). Each source is downloaded from the publisher on a
-schedule you set (daily recommended), converted to a common schema, and
-combined into one file whose SHA-256 checksum identifies the **list version**.
-Every screening and decision stores the list version it ran against, so any
-result can be reproduced.
+Lists loaded:
+
+| List | Publisher | Why |
+|---|---|---|
+| UN Security Council consolidated list | UN | Binding on Qatar; QCB item 10.4 |
+| Qatar NCTC unified record | Ministry of Interior | Domestic designations by Public Prosecutor order; QCB 10.4 and 18(9) |
+| OFAC SDN and OFAC Consolidated (non-SDN) | US Treasury | Dollar clearing and correspondent banks |
+| UK OFSI consolidated list | HM Treasury | Sterling clearing and correspondent banks |
+| EU consolidated financial sanctions list | European Commission | Euro clearing and correspondent banks |
+| The firm's internal watchlist | The firm | Previously rejected customers, regulator circulars, FIU requests |
+
+Each public source is downloaded from the publisher on a schedule you set
+(daily recommended), converted to a common schema, and combined into one file
+whose SHA-256 checksum identifies the **list version**. The internal watchlist is
+uploaded by the firm and becomes part of the same versioned file. Every screening
+and decision stores the list version it ran against, so any result can be
+reproduced.
+
+**Both parties to a transfer are screened.** The sender at onboarding and on
+each decision; the beneficiary on each decision, against the same lists with the
+same identifiers, because QCB item 18(9) prohibits a transfer of any value where
+the originator or the recipient is listed.
+
+**Country risk** comes from a dated file of the FATF call-for-action and
+increased-monitoring lists (and the EU high-risk third-country list when
+populated), updated after each FATF plenary, not from constants in code.
+
+**Licensed data not included:** politically exposed persons (QCB item 10.3
+requires PEP measures; PEP data is a licensed feed which we integrate rather
+than own) and adverse media. Both are offered as add-ons with the licence cost
+passed through. Receiving-country designation lists (Philippines AMLC, Pakistan
+NACTA, India MHA) are on the roadmap for the corridor packs.
 
 Fields used from each entry: primary name, all listed aliases (including
 non-Latin script forms), entity type (individual, entity, vessel), dates or
@@ -78,6 +102,7 @@ configured and says so otherwise.
 
 ## Known limits
 
-No PEP data. No ownership analysis (OFAC 50 percent rule). OFAC non-SDN lists
-not loaded. No transaction monitoring. No document forgery detection; liveness
-only through a configured vendor. Each is stated to the customer in writing.
+No PEP data and no adverse media without a licensed feed. No ownership analysis
+(OFAC 50 percent rule). No transaction monitoring. No document forgery
+detection; liveness only through a configured vendor. Each is stated to the
+customer in writing.

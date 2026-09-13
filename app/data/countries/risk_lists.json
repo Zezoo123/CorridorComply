@@ -1,0 +1,18 @@
+{
+  "_comment": "Country risk lists used by the corridor engine. FATF publishes these three times a year (February, June, October plenaries) and has no machine-readable feed: update by hand from fatf-gafi.org and record the plenary date. EU list: Commission Delegated Regulation on high-risk third countries; update from eur-lex. Verify before each pilot.",
+  "fatf_call_for_action": {
+    "as_of": "2025-10",
+    "source": "FATF, High-Risk Jurisdictions subject to a Call for Action",
+    "countries": ["KP", "IR", "MM"]
+  },
+  "fatf_increased_monitoring": {
+    "as_of": "2025-10",
+    "source": "FATF, Jurisdictions under Increased Monitoring (the 'grey list'); VERIFY against the latest plenary statement before use",
+    "countries": ["DZ", "AO", "BO", "BG", "CM", "CI", "CD", "HT", "KE", "LA", "LB", "MC", "NA", "NP", "SS", "SY", "VE", "VN", "VG", "YE"]
+  },
+  "eu_high_risk_third_countries": {
+    "as_of": "unverified",
+    "source": "Commission Delegated Regulation (EU) 2016/1675 as amended; populate from the current annex",
+    "countries": []
+  }
+}

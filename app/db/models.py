@@ -111,6 +111,7 @@ class Decision(Base):
     tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
     customer_id: Mapped[Optional[int]] = mapped_column(ForeignKey("customers.id"), nullable=True, index=True)
     screening_id: Mapped[Optional[int]] = mapped_column(ForeignKey("screenings.id"), nullable=True)
+    beneficiary_screening_id: Mapped[Optional[int]] = mapped_column(ForeignKey("screenings.id"), nullable=True)
     request_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
     corridor: Mapped[str] = mapped_column(String(5), index=True)
     ruleset_version: Mapped[str] = mapped_column(String(20))
@@ -129,7 +130,8 @@ class Decision(Base):
     disposition_by: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     disposition_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
-    screening: Mapped[Optional[Screening]] = relationship()
+    screening: Mapped[Optional[Screening]] = relationship(foreign_keys=[screening_id])
+    beneficiary_screening: Mapped[Optional[Screening]] = relationship(foreign_keys=[beneficiary_screening_id])
 
 
 class Alert(Base):

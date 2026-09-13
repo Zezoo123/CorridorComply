@@ -7,7 +7,7 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from sqlalchemy.orm import Session
 
 from ..config import DEFAULT_TENANT
@@ -146,3 +146,25 @@ async def current_list(session: Session = Depends(get_session)):
     lv = records.current_list_version(session)
     return {"id": lv.id, "label": lv.label, "file_name": lv.file_name, "checksum": lv.checksum,
             "row_count": lv.row_count, "sources": lv.sources, "registered_at": lv.created_at.isoformat()}
+
+
+# --------------------------------------------------------- internal watchlist
+@router.get("/lists/internal")
+async def internal_list_status():
+    """The firm's own watchlist currently loaded (source INTERNAL)."""
+    from ..services.lists import internal_watchlist_status
+    return internal_watchlist_status()
+
+
+@router.post("/lists/internal")
+async def upload_internal_list(request: Request, file: UploadFile = File(...)):
+    """Replace the firm's internal watchlist with a CSV (columns: name, aliases, type, dob, nationality,
+    id_numbers, reason, reference, listed_on). Rebuilds the combined list and reloads the screener."""
+    from ..services.lists import install_internal_watchlist
+    content = await file.read()
+    try:
+        result = install_internal_watchlist(content, file.filename or "internal.csv")
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    log_audit_event("internal_watchlist_replaced", {"status": "success", **result}, request=request)
+    return result

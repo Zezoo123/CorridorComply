@@ -112,9 +112,15 @@ def _remember(job: Dict[str, Any]) -> None:
 
 
 def _ctx(request: Request, session: Session, **extra):
+    from ..services.lists import internal_watchlist_status
     open_alerts = len(records.alerts_for(session, UI_TENANT, status="open"))
     pending = records.pending_count(session, UI_TENANT)
-    return {"request": request, "open_alerts": open_alerts, "pending_reviews": pending, "tenant": UI_TENANT, **extra}
+    try:
+        internal = internal_watchlist_status()
+    except Exception:
+        internal = {"present": False, "entries": 0}
+    return {"request": request, "open_alerts": open_alerts, "pending_reviews": pending, "tenant": UI_TENANT,
+            "internal_list": internal, **extra}
 
 
 @router.get("/screen", response_class=HTMLResponse)
@@ -283,6 +289,20 @@ async def sample_csv():
     return Response(sample, media_type="text/csv", headers={"Content-Disposition": 'attachment; filename="sample_customers.csv"'})
 
 
+# ------------------------------------------------------- internal watchlist
+@router.post("/screen/internal-list")
+async def upload_internal_list_ui(request: Request, file: UploadFile = File(...), session: Session = Depends(get_session)):
+    from ..services.lists import install_internal_watchlist
+    content = await file.read()
+    try:
+        result = install_internal_watchlist(content, file.filename or "internal.csv")
+    except ValueError as e:
+        return templates.TemplateResponse("screen_upload.html", _ctx(request, session, error=f"Internal watchlist: {e}"))
+    log_audit_event("internal_watchlist_replaced", {"status": "success", "channel": "web", **result}, request=request)
+    return templates.TemplateResponse("screen_upload.html", _ctx(request, session, error=None,
+                                      notice=f"Internal watchlist replaced: {result['entries']} entries. List version {result['list_version']}."))
+
+
 # ------------------------------------------------------------ review console
 def _case_view(d) -> Dict[str, Any]:
     view = records.decision_to_dict(d)
@@ -311,7 +331,9 @@ async def review_case(request: Request, decision_id: int, session: Session = Dep
     if d is None:
         raise HTTPException(404, "Decision not found")
     screening = records.screening_to_dict(d.screening) if d.screening else None
-    return templates.TemplateResponse("review_case.html", _ctx(request, session, d=_case_view(d), screening=screening, error=None))
+    bscreening = records.screening_to_dict(d.beneficiary_screening) if d.beneficiary_screening else None
+    return templates.TemplateResponse("review_case.html", _ctx(request, session, d=_case_view(d), screening=screening,
+                                                               beneficiary_screening=bscreening, error=None))
 
 
 @router.post("/review/{decision_id}", response_class=HTMLResponse)
@@ -324,7 +346,9 @@ async def review_disposition(request: Request, decision_id: int, outcome: str = 
         records.disposition(session, UI_TENANT, decision_id, outcome, reason, by)
     except ValueError as e:
         screening = records.screening_to_dict(d.screening) if d.screening else None
-        return templates.TemplateResponse("review_case.html", _ctx(request, session, d=_case_view(d), screening=screening, error=str(e)))
+        bscreening = records.screening_to_dict(d.beneficiary_screening) if d.beneficiary_screening else None
+        return templates.TemplateResponse("review_case.html", _ctx(request, session, d=_case_view(d), screening=screening,
+                                                                   beneficiary_screening=bscreening, error=str(e)))
     log_audit_event("decision_disposition", {"status": "success", "decision_id": decision_id, "disposition": outcome,
                                              "reason": reason, "by": by, "channel": "web"}, request=request)
     return RedirectResponse(f"/review/{decision_id}", status_code=303)
