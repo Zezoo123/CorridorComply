@@ -95,18 +95,19 @@ class RiskEngine:
         risk_factors = []
         
         if has_sanctions_match:
-            # Sanctions matches are highest risk
-            risk_score += 50
+            max_similarity = max((m.get("similarity", 0) for m in matches), default=100)
+            confidence = cls.get_confidence_level(max_similarity)
+            # A name-only match below the similarity threshold (kept because a shortened form of
+            # the name matched and nothing contradicts it) starts lower than a proper match.
+            risk_score += 50 if confidence != "low" else 30
             risk_factors.append({
                 "type": RiskFactorType.AML_SANCTIONS.value,
-                "severity": "high",
+                "severity": "high" if confidence != "low" else "low",
                 "description": "Sanctions list match found"
             })
             
             # Boost risk based on match confidence
             if matches:
-                max_similarity = max(m.get("similarity", 0) for m in matches)
-                confidence = cls.get_confidence_level(max_similarity)
                 
                 if confidence == "high":
                     risk_score += 30  # Exact/high confidence match
@@ -130,29 +131,46 @@ class RiskEngine:
                         "description": "Low confidence sanctions match"
                     })
                 
-                # Additional DOB/country match boosts
-                if any(m.get("dob_match") for m in matches if m.get("dob_match") is not None):
+                # Date of birth and nationality are judged on the strongest candidate (the list
+                # is sorted best first), not across the pile: twelve weak namesakes without a
+                # date of birth must not rescue a best match whose date of birth differs.
+                strongest = max(matches, key=lambda m: (m.get("match_type") == "identifier", m.get("similarity", 0)))
+                dob_agreement = strongest.get("dob_agreement") or {True: "exact", False: "mismatch"}.get(strongest.get("dob_match"), "unknown")
+                if dob_agreement == "exact":
                     risk_score += 10
                     risk_factors.append({
                         "type": RiskFactorType.AML_SANCTIONS.value,
                         "severity": "high",
                         "description": "DOB match with sanctions list"
                     })
-                elif matches and all(m.get("dob_match") is False for m in matches):
-                    # Every candidate has a DOB on file and none agrees: likely a namesake
-                    risk_score -= 15
+                elif dob_agreement == "year":
+                    risk_score += 5
+                    risk_factors.append({
+                        "type": RiskFactorType.AML_SANCTIONS.value,
+                        "severity": "medium",
+                        "description": "Year of birth matches the sanctions list"
+                    })
+                elif dob_agreement == "mismatch" and strongest.get("match_type") != "identifier":
+                    risk_score -= 25
                     risk_factors.append({
                         "type": RiskFactorType.AML_SANCTIONS.value,
                         "severity": "low",
-                        "description": "Date of birth differs from every matching list entry"
+                        "description": "Date of birth differs from the matching list entry"
                     })
                 
-                if any(m.get("country_match") for m in matches if m.get("country_match") is not None):
+                if strongest.get("country_match") is True:
                     risk_score += 5
                     risk_factors.append({
                         "type": RiskFactorType.AML_SANCTIONS.value,
                         "severity": "medium",
                         "description": "Country match with sanctions list"
+                    })
+                elif strongest.get("country_match") is False and strongest.get("match_type") != "identifier":
+                    risk_score -= 5
+                    risk_factors.append({
+                        "type": RiskFactorType.AML_SANCTIONS.value,
+                        "severity": "low",
+                        "description": "Nationality differs from the matching list entry"
                     })
         
         if has_pep_match and not has_sanctions_match:
@@ -173,8 +191,9 @@ class RiskEngine:
                 "description": "Watchlist match found"
             })
         
-        # Multiple matches increase risk
-        if len(matches) > 1:
+        # Multiple matches increase risk, unless the best of them is itself weak: several
+        # namesakes do not add up to one real match.
+        if len(matches) > 1 and cls.get_confidence_level(max(m.get("similarity", 0) for m in matches)) != "low":
             additional_risk = min(20, len(matches) * 5)
             risk_score += additional_risk
             risk_factors.append({

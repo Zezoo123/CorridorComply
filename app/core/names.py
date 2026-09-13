@@ -13,12 +13,19 @@ from typing import Iterable, List, Set
 from unidecode import unidecode
 
 # Honorifics and ranks that appear in list names but never in a customer record.
+# Titles that are never part of a name: stripped wherever they occur.
 _TITLES = {
-    "mr", "mrs", "ms", "dr", "prof", "sir", "hajji", "haji", "hajj", "shaykh", "sheikh",
-    "sheik", "mullah", "maulavi", "maulawi", "mawlawi", "colonel", "col", "general", "gen",
+    "mr", "mrs", "ms", "dr", "prof", "sir", "colonel", "col", "general", "gen",
     "brigadier", "major", "captain", "capt", "lieutenant", "lt", "engineer", "eng",
-    "alhaj", "al-haj", "sayed", "sayyed", "sayyid", "seyyed", "ustad", "ustaz", "hafiz", "qari",
 }
+# Honorifics: stripped only when they lead the name (lists write "Haji Khairullah").
+_HONORIFICS = {
+    "hajji", "haji", "hajj", "shaykh", "sheikh", "sheik", "mullah", "maulavi", "maulawi", "mawlawi",
+    "alhaj", "al-haj", "ustad", "ustaz", "qari",
+}
+# Honorifics that are at least as often a given name or surname (Sayed Ahmed, Hafiz Saeed):
+# stripped only when leading and at least two tokens remain.
+_NAME_LIKE_HONORIFICS = {"sayed", "sayyed", "sayyid", "seyyed", "hafiz"}
 
 # Name particles: kept in the string for scoring, but never used as index keys
 # because they occur in tens of thousands of names.
@@ -46,6 +53,10 @@ def normalize(name: str) -> str:
     text = text.replace("'", "").replace("’", "")
     text = _NON_ALNUM.sub(" ", text)
     tokens = [t for t in _SPACES.split(text.strip()) if t and t not in _TITLES]
+    while len(tokens) >= 2 and tokens[0] in _HONORIFICS:
+        tokens = tokens[1:]
+    while len(tokens) >= 3 and tokens[0] in _NAME_LIKE_HONORIFICS:
+        tokens = tokens[1:]
     return " ".join(tokens)
 
 

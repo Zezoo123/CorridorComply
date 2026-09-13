@@ -1,7 +1,27 @@
 from typing import Any, Dict, List, Optional
 
 from .risk_engine import RiskEngine
+from rapidfuzz import fuzz
+
+from ..core.names import normalize
 from .screening import SIMILARITY_THRESHOLD, get_index
+
+
+NEAR_EXACT_VARIANT = 95
+
+
+def _corroborated(c) -> bool:
+    """Whether a hit found only through a shortened form of the name, scoring below the
+    threshold on the full name, is worth showing.
+
+    Date of birth agrees: yes. Date of birth differs (full dates on both sides): no, that is a
+    namesake. No date of birth on the entry: no if the nationality differs; otherwise only if
+    the shortened form matched the list name almost exactly."""
+    if c.dob_agreement in ("exact", "year"):
+        return True
+    if c.dob_agreement == "mismatch" or c.nationality_agreement == "mismatch":
+        return False
+    return (c.variant_similarity or 0) >= NEAR_EXACT_VARIANT
 
 
 class AMLService:
@@ -21,9 +41,18 @@ class AMLService:
             name_flags = info.flags
             variants = info.variants or [full_name]
         best: Dict[str, Any] = {}
+        q_full = normalize(full_name)
         for n, v in enumerate(variants):
             for c in index.screen(v, dob=dob, nationality=nationality, entity_type=entity_type, threshold=threshold,
                                   id_numbers=id_numbers if n == 0 else None):
+                if n > 0 and c.match_type != "identifier":
+                    # A hit found through a shortened form of the name is scored on the name the
+                    # customer actually supplied. "Muhammad Imran Khan" shortened to "Muhammad Khan"
+                    # equals the alias "Khan Muhammad" exactly, but the person supplied three names.
+                    c.screened_as, c.variant_similarity = v, c.similarity
+                    c.similarity = fuzz.token_sort_ratio(q_full, normalize(c.matched_name))
+                    if c.similarity < threshold and not _corroborated(c):
+                        continue
                 key = f"{c.entry.source}:{c.entry.dataid}"
                 if key not in best or c.similarity > best[key].similarity:
                     best[key] = c

@@ -59,6 +59,8 @@ class Candidate:
     dob_agreement: str           # exact | year | mismatch | unknown
     nationality_agreement: str   # match | mismatch | unknown
     name_similarity: Optional[float] = None  # identifier hits: how well the name agrees as well
+    screened_as: Optional[str] = None        # the shortened name variant that produced the hit, if any
+    variant_similarity: Optional[float] = None  # similarity of that variant (similarity is the full name's)
 
     def to_dict(self) -> Dict:
         e = self.entry
@@ -74,6 +76,8 @@ class Candidate:
             "id_numbers": e.id_numbers or None,
             "similarity": round(self.similarity, 2),
             "name_similarity": round(self.name_similarity, 2) if self.name_similarity is not None else None,
+            "screened_as": self.screened_as,
+            "variant_similarity": round(self.variant_similarity, 2) if self.variant_similarity is not None else None,
             "aliases": e.aliases[:10],
             "dob": format_dates(e.dob_dates, e.dob_years) or None,
             "dob_agreement": self.dob_agreement,
