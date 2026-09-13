@@ -65,6 +65,17 @@ Customers kept on file are re-screened against every new list version. A new
 hit, an additional matching entry, or a cleared hit raises an alert with the
 exact entry that changed. Alerts are acknowledged with a reason.
 
+## Document checks (KYC)
+
+The machine-readable zone of a passport (TD3) or ID card (TD1) is located,
+read, and parsed; each check digit (document number, birth date, expiry,
+composite) is reported separately so a reviewer can tell an OCR misread from a
+tampered field. Expiry is checked against today. The parsed fields are compared
+with the data the customer submitted (name, document number, date of birth,
+nationality, expiry, issuing country) and mismatches are scored. The selfie is
+compared with the document photo. Liveness runs only when a vendor is
+configured and says so otherwise.
+
 ## Known limits
 
 No PEP data. No ownership analysis (OFAC 50 percent rule). OFAC non-SDN lists

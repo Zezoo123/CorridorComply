@@ -65,7 +65,7 @@ FastAPI routers:
 SQLAlchemy 2 models in `models.py`; lazy engine in `database.py` (`DATABASE_URL`, default SQLite under `data/`); Alembic migrations in `migrations/` (`alembic upgrade head`). Tests get a fresh SQLite file via the `db` fixture. `app/monitoring.py` is the re-screen CLI for cron.
 
 ### Core (`app/core/`)
-- `ocr.py` - Passport MRZ extraction using EasyOCR and mrz library
+- `ocr.py` - MRZ extraction using EasyOCR and the mrz library: TD3 (passports, 2x44) and TD1 (ID cards, 3x30, tried before generic ID OCR). `parse_mrz` returns per-field checksum results (`checks`) and ISO dates with 19xx/20xx century handling for birth dates
 - `id_ocr.py` - ID card OCR with country-specific rules
 - `fuzzy_match.py` - RapidFuzz-based name matching (token_sort_ratio), used by MRZ comparison
 - `names.py` - Name normalization (unidecode, titles, particles) and blocking keys (consonant skeleton)

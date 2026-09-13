@@ -130,12 +130,17 @@ def main(file, debug=True):
         print(f"Found {len(mrz_lines)} MRZ line(s)")
     
     if len(mrz_lines) >= 2:
-        line1 = mrz_lines[0]
-        line2 = mrz_lines[1]
-        min_x = min(line1[0], line2[0])
-        min_y = min(line1[1], line2[1])
-        max_x = max(line1[0] + line1[2], line2[0] + line2[2])
-        max_y = max(line1[1] + line1[3], line2[1] + line2[3])
+        # Passports (TD3) have two MRZ lines, ID cards (TD1) three. Take up to three
+        # lines that sit close together above the bottom-most one.
+        chosen = [mrz_lines[0]]
+        for ln in mrz_lines[1:3]:
+            prev = chosen[-1]
+            if prev[1] - (ln[1] + ln[3]) <= max(prev[3], ln[3]) * 2.5:
+                chosen.append(ln)
+        min_x = min(l[0] for l in chosen)
+        min_y = min(l[1] for l in chosen)
+        max_x = max(l[0] + l[2] for l in chosen)
+        max_y = max(l[1] + l[3] for l in chosen)
         mrzBox = (min_x, min_y, max_x - min_x, max_y - min_y)
         if debug:
             print(f"Combined MRZ box: {mrzBox[2]}x{mrzBox[3]} at ({mrzBox[0]},{mrzBox[1]})")

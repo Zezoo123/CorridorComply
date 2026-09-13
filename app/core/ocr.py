@@ -4,6 +4,7 @@ import numpy as np
 from PIL import Image
 from typing import Dict, Any, Optional
 from .mrz_detect import main as mrz_main
+from mrz.checker.td1 import TD1CodeChecker
 from mrz.checker.td3 import TD3CodeChecker
 import logging
 import tempfile
@@ -148,17 +149,9 @@ def compare_mrz_with_request_data(mrz_data: Dict[str, Any], request_data: Dict[s
         return name.upper().replace(" ", "").replace("<", "")
     
     # Helper to parse and format dates
-    def parse_mrz_date(mrz_date: str) -> Optional[str]:
-        """Convert YYMMDD to YYYY-MM-DD"""
-        try:
-            year = int(mrz_date[:2])
-            month = int(mrz_date[2:4])
-            day = int(mrz_date[4:6])
-            if year < 100:
-                year += 2000
-            return f"{year:04d}-{month:02d}-{day:02d}"
-        except:
-            return None
+    def parse_mrz_date(mrz_date: str, kind: str = "birth") -> Optional[str]:
+        """Convert YYMMDD to YYYY-MM-DD. Birth dates later than next year are 19xx; expiry dates are 20xx."""
+        return mrz_yymmdd_to_iso(mrz_date, kind)
     
     # Only compare fields that are present in request_data
     
@@ -222,7 +215,7 @@ def compare_mrz_with_request_data(mrz_data: Dict[str, Any], request_data: Dict[s
     
     # 3. Date of Birth
     if "date_of_birth" in request_data and request_data.get("date_of_birth"):
-        mrz_dob = parse_mrz_date(mrz_data.get("birth_date", ""))
+        mrz_dob = parse_mrz_date(mrz_data.get("birth_date", ""), "birth")
         req_dob = request_data.get("date_of_birth", "")
         if mrz_dob and req_dob:
             if mrz_dob == req_dob:
@@ -250,7 +243,7 @@ def compare_mrz_with_request_data(mrz_data: Dict[str, Any], request_data: Dict[s
     
     # 5. Expiry Date
     if "expiry_date" in request_data and request_data.get("expiry_date"):
-        mrz_expiry = parse_mrz_date(mrz_data.get("expiry_date", ""))
+        mrz_expiry = parse_mrz_date(mrz_data.get("expiry_date", ""), "expiry")
         req_expiry = request_data.get("expiry_date", "")
         if mrz_expiry and req_expiry:
             if mrz_expiry == req_expiry:
@@ -286,26 +279,87 @@ def compare_mrz_with_request_data(mrz_data: Dict[str, Any], request_data: Dict[s
     }
 
 
-def parse_mrz(mrz_text: str) -> dict:
+def mrz_yymmdd_to_iso(value: Optional[str], kind: str = "birth") -> Optional[str]:
+    """YYMMDD -> YYYY-MM-DD. Birth dates whose two-digit year is later than next year
+    belong to the 1900s; expiry dates are always 20xx. Returns None when unparseable."""
+    from datetime import datetime
+    if not value or len(value) < 6 or not value[:6].isdigit():
+        return None
+    yy, mm, dd = int(value[:2]), int(value[2:4]), int(value[4:6])
+    if kind == "birth":
+        year = 2000 + yy if yy <= (datetime.now().year % 100) + 1 else 1900 + yy
+    else:
+        year = 2000 + yy
     try:
-        td3_check = TD3CodeChecker(mrz_text)
-        if not td3_check.fields:
+        return datetime(year, mm, dd).strftime("%Y-%m-%d")
+    except ValueError:
+        return None
+
+
+def mrz_format_for(text: str) -> Optional[str]:
+    """TD3 (2 x 44, passports) or TD1 (3 x 30, ID cards) from the shape of the text."""
+    lines = [ln for ln in text.replace("\r", "").split("\n") if ln.strip()]
+    if len(lines) == 3 and all(26 <= len(ln) <= 32 for ln in lines):
+        return "TD1"
+    if len(lines) == 2 and all(40 <= len(ln) <= 46 for ln in lines):
+        return "TD3"
+    flat = "".join(lines)
+    if len(flat) in range(86, 92):
+        return "TD1" if len(lines) >= 3 else "TD3"
+    if 84 <= len(flat) <= 92:
+        return "TD3"
+    return None
+
+
+def parse_mrz(mrz_text: str, fmt: Optional[str] = None) -> dict:
+    """Parse a TD3 (passport) or TD1 (ID card) MRZ. Returns per-field checksum results
+    so a reviewer sees which field an OCR error hit, plus the composite result."""
+    fmt = fmt or mrz_format_for(mrz_text) or "TD3"
+    try:
+        checker = TD1CodeChecker(mrz_text) if fmt == "TD1" else TD3CodeChecker(mrz_text)
+        if not checker.fields:
             return {"error": "Invalid MRZ format"}
-        fields = td3_check.fields()
+        fields = checker.fields()
+        # The checker's report lists each check as (name, passed)
+        checks = {}
+        try:
+            for name, ok in checker.report._rep[0]:
+                checks[name.replace(" hash", "").replace(" ", "_")] = bool(ok)
+        except Exception:
+            checks = {"composite": bool(checker)}
         return {
+            "format": fmt,
             "document_type": fields.document_type,
             "country_code": fields.country,
             "surname": fields.surname,
             "given_names": fields.name,
             "document_number": fields.document_number,
             "nationality": fields.nationality,
-            "birth_date": fields.birth_date,  # YYMMDD format
+            "birth_date": fields.birth_date,   # YYMMDD
+            "birth_date_iso": mrz_yymmdd_to_iso(fields.birth_date, "birth"),
             "sex": fields.sex,
-            "expiry_date": fields.expiry_date, # YYMMDD format
-            "valid_composite": bool(td3_check) # Checksums check
+            "expiry_date": fields.expiry_date, # YYMMDD
+            "expiry_date_iso": mrz_yymmdd_to_iso(fields.expiry_date, "expiry"),
+            "optional_data": getattr(fields, "optional_data", None),
+            "checks": checks,
+            "valid_composite": bool(checker),  # all checksums pass
         }
     except Exception as e:
         return {"error": str(e)}
+
+
+def assemble_mrz_text(cleaned_lines: list) -> tuple:
+    """Turn OCR lines into (multi-line text, single-line text, format), fixing '<' counts
+    to the format's fixed length: TD1 = 3 x 30, TD3 = 2 x 44."""
+    joined = "".join(cleaned_lines)
+    n = len(cleaned_lines)
+    if n >= 3 and abs(len(joined) - 90) <= abs(len(joined) - 88) or (n >= 3 and len(joined) >= 80):
+        fmt, width, count = "TD1", 30, 3
+    else:
+        fmt, width, count = "TD3", 44, 2
+    single = fix_ocr_angle_brackets(joined, target_length=width * count)
+    multi = "\n".join(single[i * width:(i + 1) * width] for i in range(count))
+    return multi, single, fmt
 
 
 def try_extract_mrz_at_orientation(img_bgr: np.ndarray, orientation: int = 0) -> Optional[np.ndarray]:
@@ -415,10 +469,14 @@ def validate_document_ocr(document_image: Image.Image, document_type: Optional[s
             - error: Optional[str] - error message if any
             - details: list - validation details
     """
-    # Route to ID OCR for non-passport documents
+    # ID cards: most carry a TD1 machine-readable zone on the back (Qatar ID, Emirates ID,
+    # Philippine and Pakistani cards do not all, so fall back to generic OCR when none is found).
     if document_type and document_type.lower() not in ['passport', 'pass']:
+        mrz_attempt = _validate_via_mrz(document_image, expected_format="TD1")
+        if mrz_attempt is not None:
+            return mrz_attempt
         from .id_ocr import validate_id_ocr
-        logger.info(f"Using ID OCR for document type: {document_type}")
+        logger.info(f"No MRZ found; using ID OCR for document type: {document_type}")
         result = validate_id_ocr(document_image, country_code or 'US', document_type)
         # Convert to same format as MRZ validation
         return {
@@ -430,17 +488,25 @@ def validate_document_ocr(document_image: Image.Image, document_type: Optional[s
         }
     
     # Default: MRZ extraction for passports
+    result = _validate_via_mrz(document_image, expected_format="TD3")
+    if result is None:
+        return {
+            "valid": False,
+            "mrz_data": None,
+            "error": "Could not extract MRZ from document",
+            "details": ["MRZ extraction failed"]
+        }
+    return result
+
+
+def _validate_via_mrz(document_image: Image.Image, expected_format: str = "TD3") -> Optional[Dict[str, Any]]:
+    """Locate and read the MRZ. Returns None when no MRZ region is found (caller falls back)."""
     try:
         # Extract MRZ region
         mrz_image = extract_mrz_from_image(document_image)
         
         if mrz_image is None:
-            return {
-                "valid": False,
-                "mrz_data": None,
-                "error": "Could not extract MRZ from document",
-                "details": ["MRZ extraction failed"]
-            }
+            return None
         
         # Shared, lazily created EasyOCR reader (model load once per process)
         try:
@@ -483,13 +549,7 @@ def validate_document_ocr(document_image: Image.Image, document_type: Optional[s
                         cleaned_lines[0] = first_line[0] + '<' + first_line[1:]
                         logger.debug(f"Fixed document type alignment: {first_line[:5]} -> {cleaned_lines[0][:5]}")
             
-            # Join lines - MRZ typically has 2-3 lines
-            mrz_text = "\n".join(cleaned_lines)
-            
-            # Also create a single-line version for parsing (some parsers expect this)
-            mrz_text_single = "".join(cleaned_lines)
-            
-            if not mrz_text:
+            if not cleaned_lines:
                 return {
                     "valid": False,
                     "mrz_data": None,
@@ -497,28 +557,9 @@ def validate_document_ocr(document_image: Image.Image, document_type: Optional[s
                     "details": ["OCR could not read MRZ text"]
                 }
             
-            # Post-process to fix common OCR errors with '<' characters
-            # TD3 format requires 88 characters total (2 lines of 44)
-            mrz_text_single_before_fix = mrz_text_single
-            
-            # Fix the text and ensure it's the correct length for TD3 (88 chars)
-            mrz_text_single = fix_ocr_angle_brackets(mrz_text_single, target_length=88)
-            
-            # Rebuild multi-line version (2 lines of 44 chars each)
-            if len(mrz_text_single) >= 88:
-                mrz_text = mrz_text_single[:44] + "\n" + mrz_text_single[44:88]
-            else:
-                # If still short, pad to 88
-                mrz_text_single = mrz_text_single + '<' * (88 - len(mrz_text_single))
-                mrz_text = mrz_text_single[:44] + "\n" + mrz_text_single[44:88]
-            
-            logger.debug(f"Extracted MRZ text ({len(mrz_text_single_before_fix)} -> {len(mrz_text_single)} chars)")
-            logger.debug(f"Before fix: {mrz_text_single_before_fix[:60]}...")
-            logger.debug(f"After fix:  {mrz_text_single[:60]}...")
-            
-            # Log if length is not standard (TD3 should be 88 or 89 chars)
-            if len(mrz_text_single) not in [88, 89]:
-                logger.warning(f"MRZ text length is {len(mrz_text_single)}, expected 88-89 for TD3 format")
+            mrz_text_single_before_fix = "".join(cleaned_lines)
+            mrz_text, mrz_text_single, mrz_format = assemble_mrz_text(cleaned_lines)
+            logger.debug(f"Extracted MRZ text ({len(mrz_text_single_before_fix)} -> {len(mrz_text_single)} chars, {mrz_format})")
         except Exception as e:
             logger.error(f"OCR text extraction failed: {str(e)}")
             return {
@@ -528,13 +569,15 @@ def validate_document_ocr(document_image: Image.Image, document_type: Optional[s
                 "details": ["OCR text extraction failed"]
             }
         
-        # Parse MRZ - try both multi-line and single-line formats
-        mrz_data = parse_mrz(mrz_text)
-        
-        # If parsing fails, try with single-line format
+        # Parse MRZ in the detected format; if that fails, try the other format
+        mrz_data = parse_mrz(mrz_text, mrz_format)
         if "error" in mrz_data:
-            logger.debug("Trying single-line MRZ format")
-            mrz_data = parse_mrz(mrz_text_single)
+            other = "TD3" if mrz_format == "TD1" else "TD1"
+            width, count = (44, 2) if other == "TD3" else (30, 3)
+            alt_single = fix_ocr_angle_brackets(mrz_text_single_before_fix, target_length=width * count)
+            alt_multi = "\n".join(alt_single[i * width:(i + 1) * width] for i in range(count))
+            logger.debug(f"Trying {other} MRZ format")
+            mrz_data = parse_mrz(alt_multi, other)
         
         if "error" in mrz_data:
             return {
@@ -555,13 +598,14 @@ def validate_document_ocr(document_image: Image.Image, document_type: Optional[s
         details = [
             "MRZ extraction successful",
             "OCR text extraction successful",
-            "MRZ parsing successful"
+            f"MRZ parsing successful ({mrz_data.get('format', 'TD3')})"
         ]
         
         if checksum_valid:
             details.append("MRZ checksums validated")
         else:
-            details.append("MRZ checksum validation failed (may be due to OCR errors)")
+            failed = [k for k, ok in (mrz_data.get("checks") or {}).items() if not ok]
+            details.append(f"MRZ checksum validation failed for: {', '.join(failed) or 'composite'} (may be due to OCR errors)")
         
         if expiry_validation["valid"]:
             details.append(f"Document expiry date valid: {expiry_validation['expiry_date_formatted']}")
