@@ -96,7 +96,7 @@ pytest tests/test_sanctions_loader.py -v
 ### KYC Core
 
 - **Document OCR Processing**
-  - Passport MRZ (Machine Readable Zone) extraction and validation
+  - Passport MRZ (TD3) and ID-card MRZ (TD1, e.g. the back of a Qatar ID) extraction and validation with per-field checksum results
   - ID card OCR with country-specific rules support
   - Support for multiple document types (passport, id_card, national_id, driving_license, residence_permit)
   - Automatic routing based on document type
