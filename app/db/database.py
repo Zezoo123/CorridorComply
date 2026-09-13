@@ -60,7 +60,39 @@ def init_db() -> None:
     from . import models  # noqa: F401  (registers tables)
     url = database_url()
     if url.startswith("sqlite") or os.getenv("AUTO_CREATE_TABLES", "").lower() == "true":
-        models.Base.metadata.create_all(get_engine())
+        engine = get_engine()
+        models.Base.metadata.create_all(engine)
+        _add_missing_columns(engine, models.Base.metadata)
+
+
+def _add_missing_columns(engine, metadata) -> None:
+    """Bring a create_all-managed SQLite database up to the current models.
+
+    create_all never alters an existing table, so a laptop database created by an
+    older version lacks columns added since (e.g. decisions.beneficiary_screening_id)
+    and every query on that table fails. Add the missing nullable columns in place.
+    Constraints cannot be added this way; Alembic remains the path for Postgres.
+    """
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(engine)
+    existing_tables = set(inspector.get_table_names())
+    with engine.begin() as conn:
+        for table in metadata.sorted_tables:
+            if table.name not in existing_tables:
+                continue
+            present = {c["name"] for c in inspector.get_columns(table.name)}
+            for col in table.columns:
+                if col.name in present:
+                    continue
+                if not col.nullable and col.default is None and col.server_default is None:
+                    logger.warning("Cannot add NOT NULL column %s.%s without a default; run alembic", table.name, col.name)
+                    continue
+                ddl = f'ALTER TABLE "{table.name}" ADD COLUMN "{col.name}" {col.type.compile(dialect=engine.dialect)}'
+                if col.server_default is not None:
+                    ddl += f" DEFAULT {col.server_default.arg}"
+                conn.execute(text(ddl))
+                logger.info("Added missing column %s.%s", table.name, col.name)
 
 
 def reset_db() -> None:
