@@ -10,6 +10,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
+from ..config import DEFAULT_TENANT
 from ..core.logger import log_audit_event
 from ..db.database import get_session
 from ..models.records import AlertAck, CustomerBatchIn, CustomerIn, TenantSettings
@@ -21,7 +22,7 @@ router = APIRouter()
 
 
 def _tenant(request: Request) -> str:
-    return getattr(request.state, "tenant", None) or "dev"
+    return getattr(request.state, "tenant", None) or DEFAULT_TENANT
 
 
 def _rid(request: Request) -> Optional[str]:

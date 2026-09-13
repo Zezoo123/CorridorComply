@@ -6,6 +6,7 @@ from ..models.aml import (
     AMLScreenRequest, AMLScreenResponse, AMLBatchRequest, AMLBatchResponse, AMLBatchResult,
 )
 from ..services.aml_service import AMLService
+from ..config import DEFAULT_TENANT
 from ..core.logger import log_audit_event
 from ..db.database import get_session
 from ..services import records
@@ -32,7 +33,7 @@ async def screen_aml(request: Request, payload: AMLScreenRequest, session: Sessi
             payload.full_name, dob=payload.dob, nationality=payload.nationality, entity_type=payload.entity_type,
             request_id=request_id, id_numbers=payload.id_numbers,
         )
-        row = records.save_screening(session, getattr(request.state, "tenant", "dev"), result, request_id=request_id,
+        row = records.save_screening(session, getattr(request.state, "tenant", None) or DEFAULT_TENANT, result, request_id=request_id,
                                      channel="api", full_name=payload.full_name, dob=payload.dob,
                                      nationality=payload.nationality, entity_type=payload.entity_type)
         result["screening_id"] = row.id
@@ -92,7 +93,7 @@ async def screen_batch(request: Request, payload: AMLBatchRequest, session: Sess
         r = AMLService.screen_sync(item.full_name, dob=item.dob, nationality=item.nationality,
                                    entity_type=item.entity_type, request_id=request_id, id_numbers=item.id_numbers)
         list_version = r["list_version"]
-        row = records.save_screening(session, getattr(request.state, "tenant", "dev"), r, request_id=request_id,
+        row = records.save_screening(session, getattr(request.state, "tenant", None) or DEFAULT_TENANT, r, request_id=request_id,
                                      channel="batch", full_name=item.full_name, dob=item.dob,
                                      nationality=item.nationality, entity_type=item.entity_type)
         r["screening_id"] = row.id

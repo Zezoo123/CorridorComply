@@ -29,7 +29,7 @@ from ..services import records
 from ..services.aml_service import AMLService
 
 # The web UI has no login yet; on a single-operator deployment it acts for one tenant.
-UI_TENANT = os.getenv("UI_TENANT", "default")
+from ..config import DEFAULT_TENANT as UI_TENANT  # noqa: E402
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -113,7 +113,8 @@ def _remember(job: Dict[str, Any]) -> None:
 
 def _ctx(request: Request, session: Session, **extra):
     open_alerts = len(records.alerts_for(session, UI_TENANT, status="open"))
-    return {"request": request, "open_alerts": open_alerts, "tenant": UI_TENANT, **extra}
+    pending = records.pending_count(session, UI_TENANT)
+    return {"request": request, "open_alerts": open_alerts, "pending_reviews": pending, "tenant": UI_TENANT, **extra}
 
 
 @router.get("/screen", response_class=HTMLResponse)
@@ -280,3 +281,50 @@ async def sample_csv():
         "C-1006,Rahul Sharma,1988-11-30,IN,person\n"
     )
     return Response(sample, media_type="text/csv", headers={"Content-Disposition": 'attachment; filename="sample_customers.csv"'})
+
+
+# ------------------------------------------------------------ review console
+def _case_view(d) -> Dict[str, Any]:
+    view = records.decision_to_dict(d)
+    view["actions_by_rule"] = {}
+    # the engine stores actions flat; recover per-rule actions from the ruleset when loaded
+    try:
+        from ..corridor.engine import registry
+        rs = registry().get(d.corridor)
+        rule_actions = {r.id: r.actions for r in rs.rules}
+        view["actions_by_rule"] = {r["rule"]: rule_actions.get(r["rule"], []) for r in view["reasons"]}
+    except Exception:
+        pass
+    return view
+
+
+@router.get("/review", response_class=HTMLResponse)
+async def review_queue(request: Request, show: str = "pending", session: Session = Depends(get_session)):
+    pending = [records.decision_to_dict(d) for d in records.decisions_for(session, UI_TENANT, limit=500, pending=True)]
+    closed = [records.decision_to_dict(d) for d in records.decisions_for(session, UI_TENANT, limit=100, pending=False)]
+    return templates.TemplateResponse("review_queue.html", _ctx(request, session, pending=pending, closed=closed, show=show))
+
+
+@router.get("/review/{decision_id}", response_class=HTMLResponse)
+async def review_case(request: Request, decision_id: int, session: Session = Depends(get_session)):
+    d = records.get_decision(session, UI_TENANT, decision_id)
+    if d is None:
+        raise HTTPException(404, "Decision not found")
+    screening = records.screening_to_dict(d.screening) if d.screening else None
+    return templates.TemplateResponse("review_case.html", _ctx(request, session, d=_case_view(d), screening=screening, error=None))
+
+
+@router.post("/review/{decision_id}", response_class=HTMLResponse)
+async def review_disposition(request: Request, decision_id: int, outcome: str = Form(...), reason: str = Form(""),
+                             by: str = Form(""), session: Session = Depends(get_session)):
+    d = records.get_decision(session, UI_TENANT, decision_id)
+    if d is None:
+        raise HTTPException(404, "Decision not found")
+    try:
+        records.disposition(session, UI_TENANT, decision_id, outcome, reason, by)
+    except ValueError as e:
+        screening = records.screening_to_dict(d.screening) if d.screening else None
+        return templates.TemplateResponse("review_case.html", _ctx(request, session, d=_case_view(d), screening=screening, error=str(e)))
+    log_audit_event("decision_disposition", {"status": "success", "decision_id": decision_id, "disposition": outcome,
+                                             "reason": reason, "by": by, "channel": "web"}, request=request)
+    return RedirectResponse(f"/review/{decision_id}", status_code=303)

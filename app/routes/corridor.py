@@ -11,11 +11,12 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
+from ..config import DEFAULT_TENANT
 from ..core.logger import log_audit_event
 from ..corridor.engine import decide, registry
 from ..corridor.schema import FIELDS
 from ..db.database import get_session
-from ..models.corridor import DecisionRequest, DecisionResponse
+from ..models.corridor import DecisionRequest, DecisionResponse, DispositionIn
 from ..services import records
 from ..services.aml_service import AMLService
 
@@ -24,7 +25,7 @@ router = APIRouter()
 
 
 def _tenant(request: Request) -> str:
-    return getattr(request.state, "tenant", None) or "dev"
+    return getattr(request.state, "tenant", None) or DEFAULT_TENANT
 
 
 def _rid(request: Request) -> str:
@@ -113,9 +114,35 @@ async def make_decision(request: Request, payload: DecisionRequest, session: Ses
 
 @router.get("/decisions")
 async def list_decisions(request: Request, outcome: Optional[str] = Query(None, pattern="^(approve|review|reject)$"),
-                         limit: int = Query(100, ge=1, le=1000), session: Session = Depends(get_session)):
-    rows = records.decisions_for(session, _tenant(request), limit=limit, outcome=outcome)
+                         pending: Optional[bool] = Query(None, description="true: awaiting a reviewer; false: dispositioned"),
+                         corridor: Optional[str] = None, limit: int = Query(100, ge=1, le=1000),
+                         session: Session = Depends(get_session)):
+    rows = records.decisions_for(session, _tenant(request), limit=limit, outcome=outcome, pending=pending, corridor=corridor)
     return {"decisions": [records.decision_to_dict(d) for d in rows], "count": len(rows)}
+
+
+@router.post("/decisions/{decision_id}/disposition")
+async def record_disposition(request: Request, decision_id: int, payload: DispositionIn, session: Session = Depends(get_session)):
+    """The reviewer's call on a decision: approved, rejected or escalated, with a mandatory reason and name."""
+    try:
+        row = records.disposition(session, _tenant(request), decision_id, payload.outcome, payload.reason, payload.by)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    if row is None:
+        raise HTTPException(404, "Decision not found")
+    log_audit_event("decision_disposition", {"status": "success", "decision_id": decision_id, "disposition": payload.outcome,
+                                             "reason": payload.reason, "by": payload.by, "channel": "api"}, request=request)
+    return records.decision_to_dict(row)
+
+
+@router.get("/customers/{reference}/evidence")
+async def customer_evidence(request: Request, reference: str, session: Session = Depends(get_session)):
+    """Everything on file for one customer: profile, screenings, decisions with dispositions, alerts, list versions."""
+    bundle = records.evidence_bundle(session, _tenant(request), reference)
+    if bundle is None:
+        raise HTTPException(404, "Customer not found")
+    log_audit_event("evidence_exported", {"status": "success", "reference": reference}, request=request)
+    return bundle
 
 
 @router.get("/decisions/{decision_id}")

@@ -1,0 +1,32 @@
+{% extends "_base.html" %}
+{% block title %}Review queue · CorridorComply{% endblock %}
+{% block content %}
+<h1>Review queue</h1>
+<p class="meta">{{ pending|length }} decision{{ '' if pending|length == 1 else 's' }} waiting · {{ closed|length }} closed recently</p>
+<div class="row" style="margin:0 0 16px">
+  {% if show == 'pending' %}<a class="btn secondary" href="/review?show=closed">Show closed</a>{% else %}<a class="btn secondary" href="/review">Show pending</a>{% endif %}
+  <a class="btn secondary" href="/screen">Screen a file</a>
+</div>
+{% set rows = pending if show == 'pending' else closed %}
+{% if not rows %}
+<div class="card"><strong>Nothing to review.</strong> <span class="muted">Decisions with outcome <em>review</em> or <em>reject</em> appear here until a reviewer records a disposition with a reason. Send a decision with <code>POST /api/v1/decision</code> or screen a file.</span></div>
+{% else %}
+<div class="tablewrap"><table>
+<thead><tr><th>#</th><th>Created</th><th>Customer</th><th>Corridor</th><th>Engine outcome</th><th>Score</th><th>Rules fired</th>{% if show == 'closed' %}<th>Disposition</th><th>By</th><th>Hours</th>{% endif %}<th></th></tr></thead>
+<tbody>
+{% for d in rows %}
+<tr>
+  <td class="num">{{ d.id }}</td>
+  <td class="num">{{ d.created_at[:16].replace('T',' ') }}</td>
+  <td><strong>{{ d.customer.full_name }}</strong><div class="muted">{{ d.customer.nationality or '' }}{% if d.customer.dob %} · {{ d.customer.dob }}{% endif %}{% if d.customer.reference %} · {{ d.customer.reference }}{% endif %}</div></td>
+  <td>{{ d.corridor }} <span class="muted">v{{ d.ruleset_version }}{% if d.ruleset_status != 'approved' %} ({{ d.ruleset_status }}){% endif %}</span></td>
+  <td><span class="pill {% if d.outcome == 'reject' %}high{% elif d.outcome == 'review' %}medium{% else %}low{% endif %}">{{ d.outcome }}</span></td>
+  <td class="num">{{ d.risk_score }}</td>
+  <td>{% for r in d.reasons[:3] %}<div>{{ r.title }}</div>{% endfor %}{% if d.reasons|length > 3 %}<div class="muted">+{{ d.reasons|length - 3 }} more</div>{% endif %}</td>
+  {% if show == 'closed' %}<td><span class="pill {% if d.disposition == 'rejected' %}high{% elif d.disposition == 'escalated' %}medium{% else %}low{% endif %}">{{ d.disposition }}</span><div class="muted">{{ d.disposition_reason }}</div></td><td>{{ d.disposition_by }}</td><td class="num">{{ d.hours_to_close }}</td>{% endif %}
+  <td><a class="btn secondary" href="/review/{{ d.id }}">Open</a></td>
+</tr>
+{% endfor %}
+</tbody></table></div>
+{% endif %}
+{% endblock %}

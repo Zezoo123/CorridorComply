@@ -125,6 +125,7 @@ pytest tests/test_sanctions_loader.py -v
   - Every screening is stored with the list version (file checksum) it ran against
   - Customers on file are re-screened after each list update; changes raise alerts (`new_hit`, `new_match`, `hit_cleared`) with an optional webhook
   - `/alerts` page and `GET /api/v1/alerts`; acknowledge with a reason
+  - `/review` console: queue of decisions awaiting a reviewer, case page with rules, basis and matches, disposition with mandatory reason and name; per-customer evidence bundle export
   - SQLite by default, Postgres via `DATABASE_URL`, migrations with Alembic
 
 - **Corridor decisions** (see `docs/corridor_rules.md`)
