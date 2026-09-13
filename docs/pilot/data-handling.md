@@ -23,8 +23,9 @@ ten years; you decide the policy and apply it to the database and the log
 directory. Deleting a customer stops monitoring but keeps the history.
 
 **Access.** API keys are stored as SHA-256 hashes; each key belongs to one tenant
-and sees only that tenant's records. The web UI has no login in the pilot and
-must sit on a private network. QCB item 6.7 gives your MLRO, QCB and the FIU a
+and sees only that tenant's records. The web UI is protected by a login
+(`UI_USERNAME` / `UI_PASSWORD`); the reviewer's name on dispositions defaults to
+the logged-in user. Keep it on a private network regardless. QCB item 6.7 gives your MLRO, QCB and the FIU a
 right of access to records held by a vendor: everything is in your database and
 your log directory, in plain JSON, exportable per customer.
 
@@ -32,5 +33,6 @@ your log directory, in plain JSON, exportable per customer.
 we delete it after the session and confirm in writing.
 
 **Not done in the pilot.** Encryption at rest beyond what your host provides;
-user accounts and roles in the web UI; automatic retention enforcement. Each is
+per-user accounts and roles in the web UI (one shared login); automatic
+retention enforcement. Each is
 on the roadmap and none is hidden.

@@ -107,6 +107,7 @@ Environment variables (see `app/config.py`):
 - `UI_TENANT` - Tenant the web UI acts for (default `default`)
 - `CORRIDOR_RULES_DIR` - Directory of corridor ruleset JSON files (default `premium/corridor_rules`)
 - `LIVENESS_PROVIDER` / `LIVENESS_URL` / `LIVENESS_API_KEY` / `LIVENESS_TIMEOUT` - vendor liveness check (default none)
+- `UI_USERNAME` / `UI_PASSWORD` - HTTP Basic login for the web UI (unset = open, warning at startup)
 
 Docs: `docs/pilot/` is the pilot pack; regenerate `docs/api_reference.md` with `python scripts/export_api_reference.py` after route changes.
 - `ENVIRONMENT` - development/production
