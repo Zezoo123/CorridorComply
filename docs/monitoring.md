@@ -15,10 +15,15 @@ By default the database is SQLite at `data/corridorcomply.db`. Set
 
 ## Lists
 
-UN consolidated, OFAC SDN, UK OFSI consolidated, EU consolidated, and Qatar's
-NCTC unified record (UNSC designations as applied in Qatar plus domestic
-designations by Public Prosecutor order, with QID and passport numbers). The
-screener matches identity numbers exactly as well as names and aliases.
+UN consolidated, OFAC SDN, OFAC Consolidated (non-SDN), UK OFSI consolidated,
+EU consolidated, Qatar's NCTC unified record (UNSC designations as applied in
+Qatar plus domestic designations by Public Prosecutor order, with QID and
+passport numbers), and the firm's internal watchlist (`POST /api/v1/lists/internal`
+or the upload page; columns name, aliases, type, dob, nationality, id_numbers,
+reason, reference). The screener matches identity numbers exactly as well as
+names and aliases. Country risk (FATF lists) lives in
+`app/data/countries/risk_lists.json` with the plenary date; update it after each
+FATF plenary.
 
 ## Keeping the list fresh
 

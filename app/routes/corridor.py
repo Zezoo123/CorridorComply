@@ -89,25 +89,50 @@ async def make_decision(request: Request, payload: DecisionRequest, session: Ses
 
     customer_data = c.model_dump(exclude_none=True)
     beneficiary_data = payload.beneficiary.model_dump(exclude_none=True) if payload.beneficiary else None
+
+    # QCB 18(9): no transfer of any value where the originator OR the recipient is listed.
+    # The beneficiary is screened with the same engine, lists and identifiers as the sender.
+    beneficiary_screening = None
+    beneficiary_row = None
+    if payload.beneficiary:
+        b = payload.beneficiary
+        beneficiary_screening = AMLService.screen_sync(
+            b.full_name, dob=b.dob, nationality=b.country, entity_type=b.entity_type, request_id=request_id,
+            threshold=ruleset.screening.threshold, use_variants=ruleset.screening.screen_name_variants,
+            id_numbers=[b.id_number] if b.id_number else None,
+        )
+        beneficiary_row = records.save_screening(session, tenant, beneficiary_screening, request_id=request_id,
+                                                 channel="decision_beneficiary", full_name=b.full_name, dob=b.dob,
+                                                 nationality=b.country, entity_type=b.entity_type)
+
     decision = decide(ruleset, customer_data, screening,
                       kyc=payload.kyc.model_dump(exclude_none=True) if payload.kyc else None,
                       beneficiary=beneficiary_data,
-                      transfer=payload.transfer.model_dump(exclude_none=True) if payload.transfer else None)
+                      transfer=payload.transfer.model_dump(exclude_none=True) if payload.transfer else None,
+                      beneficiary_screening=beneficiary_screening)
     row = records.save_decision(session, tenant, decision, customer_data=customer_data, beneficiary_data=beneficiary_data,
-                                screening=screening_row, customer=customer, request_id=request_id)
+                                screening=screening_row, customer=customer, request_id=request_id,
+                                beneficiary_screening=beneficiary_row)
 
     log_audit_event(
         event_type="corridor_decision",
         data={"status": "success", "corridor": decision["corridor"], "ruleset_version": decision["ruleset_version"],
               "ruleset_status": decision["ruleset_status"], "outcome": decision["outcome"], "risk_score": decision["risk_score"],
               "rules_fired": [r["rule"] for r in decision["reasons"]], "decision_id": row.id, "screening_id": screening_row.id,
+              "beneficiary_screening_id": beneficiary_row.id if beneficiary_row else None,
+              "beneficiary_match": bool(beneficiary_screening["sanctions_match"]) if beneficiary_screening else None,
               "list_version": screening["list_version"]},
         request=request, request_payload=payload,
     )
-    screening_public = {k: v for k, v in screening.items() if k not in ("risk_factors",)}
-    screening_public["risk_level"] = getattr(screening["risk_level"], "value", str(screening["risk_level"]))
+    def _public(sc):
+        out = {k: v for k, v in sc.items() if k != "risk_factors"}
+        out["risk_level"] = getattr(sc["risk_level"], "value", str(sc["risk_level"]))
+        return out
+    screening_public = _public(screening)
     return DecisionResponse(
         request_id=request_id, decision_id=row.id, screening=screening_public, screening_id=screening_row.id,
+        beneficiary_screening=_public(beneficiary_screening) if beneficiary_screening else None,
+        beneficiary_screening_id=beneficiary_row.id if beneficiary_row else None,
         list_version=screening["list_version"], **{k: v for k, v in decision.items() if k not in ("facts",)}, facts=decision["facts"],
     )
 

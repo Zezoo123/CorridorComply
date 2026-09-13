@@ -105,6 +105,14 @@ transaction reports above PHP 500,000 within five working days.
 QCB expectations for exchange-house customer risk rating, the current AMLC STR
 deadline for RTCs, and the receiving partner's own beneficiary rules.
 
+## Version 0.3 of QA-PH
+
+Adds beneficiary screening rules (`beneficiary-listed`, `beneficiary-identifier-match`,
+`beneficiary-possible-match`), country-risk rules driven by
+`app/data/countries/risk_lists.json` (FATF call-for-action and increased
+monitoring, dated), an internal-watchlist rule, and OFAC's non-SDN consolidated
+list in the screening policy. 29 rules.
+
 ## Version 0.2 of QA-PH
 
 `premium/corridor_rules/qa_ph_rules.json` has 23 rules. Those citing a section

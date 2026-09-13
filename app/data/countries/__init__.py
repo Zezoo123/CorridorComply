@@ -322,3 +322,34 @@ def get_country_info(code: str) -> Optional[Dict[str, str]]:
             return result
     
     return None
+
+
+# ---------------------------------------------------------------- risk lists
+_RISK_LISTS = None
+
+
+def risk_lists() -> Dict[str, Dict]:
+    """FATF call-for-action, FATF increased monitoring, EU high-risk third countries (from risk_lists.json)."""
+    global _RISK_LISTS
+    if _RISK_LISTS is None:
+        import json
+        from pathlib import Path
+        path = Path(__file__).parent / "risk_lists.json"
+        data = json.loads(path.read_text(encoding="utf-8"))
+        _RISK_LISTS = {k: v for k, v in data.items() if not k.startswith("_")}
+    return _RISK_LISTS
+
+
+def country_risk(code: Optional[str]) -> Optional[str]:
+    """'call_for_action' | 'increased_monitoring' | 'eu_high_risk' | None for an ISO alpha-2 code."""
+    if not code:
+        return None
+    c = code.upper()
+    lists = risk_lists()
+    if c in lists.get("fatf_call_for_action", {}).get("countries", []):
+        return "call_for_action"
+    if c in lists.get("fatf_increased_monitoring", {}).get("countries", []):
+        return "increased_monitoring"
+    if c in lists.get("eu_high_risk_third_countries", {}).get("countries", []):
+        return "eu_high_risk"
+    return None

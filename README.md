@@ -110,7 +110,8 @@ pytest tests/test_sanctions_loader.py -v
 ### AML Core
 
 - **Sanctions Screening**
-  - Combined list from UN, OFAC (SDN), UK (OFSI consolidated list), EU and **Qatar's NCTC unified record** (domestic designations with QID and passport numbers), refreshed by `scripts/update_sanctions.py` on a schedule
+  - Combined list from UN, OFAC (SDN and non-SDN consolidated), UK (OFSI consolidated list), EU, **Qatar's NCTC unified record** (domestic designations with QID and passport numbers) and the firm's own internal watchlist, refreshed by `scripts/update_sanctions.py` on a schedule
+  - Both parties screened: sender and beneficiary on every corridor decision (QCB 18(9)); country risk from dated FATF lists
   - Exact identity-number matching (a QID or passport on a list is a definite hit) alongside names and aliases
   - Names **and listed aliases** are searched; transliteration variants (Mohammed / Muhammad / Mohamed) block together
   - Entity-type aware: screen a person against individuals, a company against entities, or a vessel

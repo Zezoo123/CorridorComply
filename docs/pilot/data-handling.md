@@ -8,7 +8,7 @@ during the pilot and we never receive your customers' data.
 
 | Data | Where | Why |
 |---|---|---|
-| Sanctions lists (UN, OFAC, UK, EU, Qatar NCTC) | `/data/sanctions` on your host | Screening; each combined file is a checksummed list version |
+| Sanctions lists (UN, OFAC SDN and consolidated, UK, EU, Qatar NCTC) and your internal watchlist | `/data/sanctions` on your host | Screening; each combined file is a checksummed list version |
 | Screenings (name, DOB, nationality, matches, list version, request id, tenant) | your database (`DATABASE_URL`, SQLite by default) | Evidence of what was screened, when, against what |
 | Customers you keep on file | your database | Re-screening when lists change |
 | Decisions, reasons, dispositions | your database | The disposition trail for inspection |

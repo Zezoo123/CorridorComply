@@ -1,11 +1,11 @@
 {
   "id": "QA-PH",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "status": "draft",
   "reviewed_by": null,
   "reviewed_on": null,
   "title": "Qatar to Philippines remittance: onboarding and screening decision rules",
-  "notes": "VERSION 0.2. Rules that cite a section of the QCB AML/CFT Instructions (May 2020, published by QFIU), Law No. 20 of 2019, the QFCRA Guidance on Sanctions (2025) or BSP issuances were drafted from the primary text. Rules whose basis says 'firm policy' or 'confirm' are judgement placeholders. NOT reviewed by a compliance professional. Thresholds and document lists must still be confirmed against the current QCB instructions and the firm's own risk assessment before use.",
+  "notes": "VERSION 0.2. Rules that cite a section of the QCB AML/CFT Instructions (May 2020, published by QFIU), Law No. 20 of 2019, the QFCRA Guidance on Sanctions (2025) or BSP issuances were drafted from the primary text. Rules whose basis says 'firm policy' or 'confirm' are judgement placeholders. NOT reviewed by a compliance professional. Thresholds and document lists must still be confirmed against the current QCB instructions and the firm's own risk assessment before use. Version 0.3 screens the beneficiary against the same lists (QCB 18(9)), adds the firm's internal watchlist and OFAC's non-SDN consolidated list, and takes country risk from the dated FATF lists. Sanctions rules (freeze, STR, inform QCB) apply to sanctions sources only; a hit on the firm's internal watchlist raises the internal-watchlist rule instead.",
   "sources": [
     "Qatar Central Bank, AML/CFT Instructions (May 2020, English), published by the Qatar Financial Information Unit: items 6.7 (outsourcing), 10.4 (persons in sanctions lists: no relationship or transaction, within 24 hours; STR; inform QCB), 14.12 (linked one-off transactions and the QR 50,000 CDD threshold), 15.2 (customer identification data for individuals), 18 (MVTS and wire transfers: QR 3,500, full originator and recipient information cross-border, prohibition on listed persons at any value, charitable causes need prior approval, 10-year retention), 19.5 (STR immediately, by the MLRO, irrespective of amount)",
     "State of Qatar, Law No. 20 of 2019 on Combating Money Laundering and Terrorism Financing: 10-year record keeping; CDD on occasional transactions at the threshold in the Implementing Regulation; wire transfers (Art. 18); DNFBP definition",
@@ -202,18 +202,17 @@
     "lists": [
       "UN",
       "OFAC",
+      "OFAC_CONS",
       "UK",
       "EU",
-      "QA_NCTC"
+      "QA_NCTC",
+      "INTERNAL"
     ],
     "threshold": 85,
     "require_dob_for_single_names": true,
     "screen_name_variants": true,
-    "high_risk_countries": [
-      "KP",
-      "IR",
-      "MM"
-    ]
+    "high_risk_countries": [],
+    "_note": "Country risk comes from app/data/countries/risk_lists.json (FATF lists, dated), not from this file."
   },
   "rules": [
     {
@@ -233,6 +232,11 @@
               "exact",
               "year"
             ]
+          },
+          {
+            "field": "screening.best_source",
+            "op": "ne",
+            "value": "INTERNAL"
           }
         ]
       },
@@ -256,6 +260,11 @@
             "field": "screening.best_match_type",
             "op": "eq",
             "value": "identifier"
+          },
+          {
+            "field": "screening.best_source",
+            "op": "ne",
+            "value": "INTERNAL"
           }
         ]
       },
@@ -269,6 +278,104 @@
         "escalate_mlro"
       ],
       "basis": "QCB AML/CFT Instructions 10.4, 18(9); NCTC unified record carries QID and passport numbers"
+    },
+    {
+      "id": "beneficiary-listed",
+      "title": "Beneficiary is a listed person",
+      "when": {
+        "all": [
+          {
+            "field": "beneficiary.screening.best_confidence",
+            "op": "eq",
+            "value": "high"
+          },
+          {
+            "field": "beneficiary.screening.best_dob_agreement",
+            "op": "in",
+            "value": [
+              "exact",
+              "year",
+              "unknown",
+              null
+            ]
+          },
+          {
+            "field": "beneficiary.screening.best_source",
+            "op": "ne",
+            "value": "INTERNAL"
+          }
+        ]
+      },
+      "outcome": "reject",
+      "risk_add": 30,
+      "reason": "The recipient matches a listed person with high confidence. QCB Instructions 18(9): no transaction of any value where the originator or the recipient is listed. Do not send; escalate; consider an STR.",
+      "actions": [
+        "do_not_send",
+        "str_to_fiu",
+        "inform_qcb_24h",
+        "escalate_mlro"
+      ],
+      "basis": "QCB AML/CFT Instructions 18(9), 10.4; FATF R.16"
+    },
+    {
+      "id": "beneficiary-identifier-match",
+      "title": "Beneficiary ID number appears on a list",
+      "when": {
+        "all": [
+          {
+            "field": "beneficiary.screening.best_match_type",
+            "op": "eq",
+            "value": "identifier"
+          },
+          {
+            "field": "beneficiary.screening.best_source",
+            "op": "ne",
+            "value": "INTERNAL"
+          }
+        ]
+      },
+      "outcome": "reject",
+      "risk_add": 40,
+      "reason": "The beneficiary's identity number appears on a sanctions list. Exact identifier match.",
+      "actions": [
+        "do_not_send",
+        "str_to_fiu",
+        "inform_qcb_24h",
+        "escalate_mlro"
+      ],
+      "basis": "QCB AML/CFT Instructions 18(9)"
+    },
+    {
+      "id": "beneficiary-possible-match",
+      "title": "Beneficiary resembles a listed person",
+      "when": {
+        "all": [
+          {
+            "field": "beneficiary.screening.match",
+            "op": "is_true"
+          },
+          {
+            "field": "beneficiary.screening.best_confidence",
+            "op": "in",
+            "value": [
+              "medium",
+              "low"
+            ]
+          },
+          {
+            "field": "beneficiary.screening.best_source",
+            "op": "ne",
+            "value": "INTERNAL"
+          }
+        ]
+      },
+      "outcome": "review",
+      "risk_add": 10,
+      "reason": "The recipient's name is similar to a listed person. A reviewer must clear or confirm before the transfer is sent.",
+      "actions": [
+        "disposition_required"
+      ],
+      "basis": "QCB AML/CFT Instructions 18(9), 18(12) (policies to execute, reject or suspend); FATF R.16"
     },
     {
       "id": "sanctions-high-unknown-dob",
@@ -287,6 +394,11 @@
               "unknown",
               null
             ]
+          },
+          {
+            "field": "screening.best_source",
+            "op": "ne",
+            "value": "INTERNAL"
           }
         ]
       },
@@ -313,6 +425,11 @@
             "field": "screening.best_dob_agreement",
             "op": "eq",
             "value": "mismatch"
+          },
+          {
+            "field": "screening.best_source",
+            "op": "ne",
+            "value": "INTERNAL"
           }
         ]
       },
@@ -333,6 +450,11 @@
             "field": "screening.best_confidence",
             "op": "eq",
             "value": "medium"
+          },
+          {
+            "field": "screening.best_source",
+            "op": "ne",
+            "value": "INTERNAL"
           }
         ]
       },
@@ -357,6 +479,11 @@
             "field": "screening.best_match_type",
             "op": "eq",
             "value": "alias"
+          },
+          {
+            "field": "screening.best_source",
+            "op": "ne",
+            "value": "INTERNAL"
           }
         ]
       },
@@ -517,26 +644,13 @@
     },
     {
       "id": "high-risk-nationality",
-      "title": "Customer from a FATF call-for-action jurisdiction",
+      "title": "Sender connected to a FATF call-for-action jurisdiction",
       "when": {
-        "any": [
+        "all": [
           {
-            "field": "customer.nationality",
-            "op": "in",
-            "value": [
-              "KP",
-              "IR",
-              "MM"
-            ]
-          },
-          {
-            "field": "customer.residence_country",
-            "op": "in",
-            "value": [
-              "KP",
-              "IR",
-              "MM"
-            ]
+            "field": "customer.country_risk",
+            "op": "eq",
+            "value": "call_for_action"
           }
         ]
       },
@@ -547,7 +661,7 @@
         "enhanced_due_diligence",
         "senior_approval"
       ],
-      "basis": "FATF R.19; QCB AML/CFT Instructions on high-risk countries (cite section after review)"
+      "basis": "FATF R.19 and the FATF call-for-action statement (app/data/countries/risk_lists.json, dated); QCB instructions on high-risk countries (cite section after review)"
     },
     {
       "id": "beneficiary-id-invalid",
@@ -743,6 +857,78 @@
         "notify_payout_partner"
       ],
       "basis": "BSP Circular 1206 (2024), regulation on large value pay-outs; AMLC covered transaction reporting above PHP 500,000"
+    },
+    {
+      "id": "beneficiary-country-call-for-action",
+      "title": "Payout into a FATF call-for-action jurisdiction",
+      "when": {
+        "all": [
+          {
+            "field": "beneficiary.country_risk",
+            "op": "eq",
+            "value": "call_for_action"
+          }
+        ]
+      },
+      "outcome": "reject",
+      "risk_add": 30,
+      "reason": "The payout country is subject to a FATF call for action (counter-measures). Transfers should not be sent without senior approval and a documented basis.",
+      "actions": [
+        "senior_approval",
+        "escalate_mlro"
+      ],
+      "basis": "FATF R.19; FATF call-for-action statement"
+    },
+    {
+      "id": "increased-monitoring-jurisdiction",
+      "title": "Sender or payout country under FATF increased monitoring",
+      "when": {
+        "any": [
+          {
+            "field": "customer.country_risk",
+            "op": "eq",
+            "value": "increased_monitoring"
+          },
+          {
+            "field": "beneficiary.country_risk",
+            "op": "eq",
+            "value": "increased_monitoring"
+          }
+        ]
+      },
+      "outcome": "review",
+      "risk_add": 10,
+      "reason": "A jurisdiction on the FATF grey list is involved. Apply enhanced due diligence proportionate to the risk and record it.",
+      "actions": [
+        "enhanced_due_diligence"
+      ],
+      "basis": "FATF R.19 and the 'Jurisdictions under Increased Monitoring' statement (dated in risk_lists.json)"
+    },
+    {
+      "id": "internal-watchlist-hit",
+      "title": "Match on the firm's own watchlist",
+      "when": {
+        "any": [
+          {
+            "field": "screening.best_source",
+            "op": "eq",
+            "value": "INTERNAL"
+          },
+          {
+            "field": "beneficiary.screening.best_source",
+            "op": "eq",
+            "value": "INTERNAL"
+          }
+        ]
+      },
+      "outcome": "review",
+      "risk_add": 20,
+      "reason": "The sender or recipient matches an entry on the firm's internal watchlist (previously rejected customers, regulator circulars, FIU requests). Check the listed reason before proceeding.",
+      "actions": [
+        "check_internal_reason",
+        "escalate_mlro"
+      ],
+      "basis": "Firm policy; QCB AML/CFT Instructions 10.1-10.2 (customer risk policies)"
     }
   ],
   "reporting": {
