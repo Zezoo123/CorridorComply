@@ -43,7 +43,7 @@ details summary{cursor:pointer;color:var(--accent)}
   <nav><a href="/screen">Upload</a><a href="/review">Review{% if pending_reviews %} <span class="pill medium">{{ pending_reviews }}</span>{% endif %}</a><a href="/alerts">Alerts{% if open_alerts %} <span class="pill high">{{ open_alerts }}</span>{% endif %}</a><a href="/screen/sample/customers.csv">Sample file</a><a href="/docs">API docs</a></nav>
 </header>
 {% block content %}{% endblock %}
-<p class="muted" style="margin-top:32px">Lists: UN consolidated, OFAC SDN, UK sanctions, EU consolidated. Names and listed aliases are both searched. Nothing you upload leaves this server. Every screening is recorded with the list version it ran against.</p>
+<p class="muted" style="margin-top:32px">Lists: UN consolidated, Qatar NCTC unified record, OFAC SDN and consolidated, UK OFSI, EU consolidated, plus your internal watchlist. Names, listed aliases and identity numbers are all searched. Nothing you upload leaves this server. Every screening is recorded with the list version it ran against.</p>
 </div>
 </body>
 </html>
