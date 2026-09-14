@@ -95,6 +95,11 @@ class Screening(Base):
     match_count: Mapped[int] = mapped_column(Integer, default=0)
     matches: Mapped[List[Dict[str, Any]]] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    # Reviewer disposition on a screening hit (migration 0005): the record an inspector reads
+    disposition: Mapped[Optional[str]] = mapped_column(String(12), nullable=True, index=True)  # cleared | confirmed | escalated
+    disposition_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    disposition_by: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    disposition_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     customer: Mapped[Optional[Customer]] = relationship(back_populates="screenings")
     list_version: Mapped[ListVersion] = relationship()

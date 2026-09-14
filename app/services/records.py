@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
-from sqlalchemy import select
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from ..db.models import Alert, ApiKey, Customer, Decision, ListVersion, Screening, Tenant
@@ -84,10 +84,60 @@ def save_screening(session: Session, tenant_slug: str, result: Dict[str, Any], *
     return row
 
 
-def screenings_for(session: Session, tenant_slug: str, limit: int = 100) -> List[Screening]:
+def screenings_for(session: Session, tenant_slug: str, limit: int = 100, pending: Optional[bool] = None) -> List[Screening]:
+    """pending=True: hits awaiting a reviewer; pending=False: hits with a disposition; None: everything."""
     tenant = get_or_create_tenant(session, tenant_slug)
-    return list(session.scalars(
-        select(Screening).where(Screening.tenant_id == tenant.id).order_by(Screening.id.desc()).limit(limit)))
+    q = select(Screening).where(Screening.tenant_id == tenant.id)
+    if pending is True:
+        q = q.where(_awaiting_review())
+    elif pending is False:
+        q = q.where(Screening.disposition.is_not(None))
+    return list(session.scalars(q.order_by(Screening.id.desc()).limit(limit)))
+
+
+def _awaiting_review():
+    """A screening hit with no disposition that is not part of a corridor decision (those are
+    reviewed as the decision, in the same queue)."""
+    attached = select(Decision.screening_id).where(Decision.screening_id.is_not(None)).union(
+        select(Decision.beneficiary_screening_id).where(Decision.beneficiary_screening_id.is_not(None)))
+    return and_(Screening.sanctions_match.is_(True), Screening.disposition.is_(None), Screening.id.not_in(attached))
+
+
+def get_screening(session: Session, tenant_slug: str, screening_id: int) -> Optional[Screening]:
+    tenant = get_or_create_tenant(session, tenant_slug)
+    row = session.get(Screening, screening_id)
+    if row is None or row.tenant_id != tenant.id:
+        return None
+    return row
+
+
+SCREENING_DISPOSITIONS = ("cleared", "confirmed", "escalated")
+
+
+def screening_disposition(session: Session, tenant_slug: str, screening_id: int, outcome: str, reason: str, by: str) -> Optional[Screening]:
+    """The reviewer's call on a screening hit: cleared (namesake), confirmed (listed person) or escalated
+    to the MLRO. Reason and reviewer are mandatory: this is the trail an inspector reads."""
+    if outcome not in SCREENING_DISPOSITIONS:
+        raise ValueError("disposition must be cleared, confirmed or escalated")
+    if not (reason or "").strip():
+        raise ValueError("a reason is required")
+    if not (by or "").strip():
+        raise ValueError("the reviewer's name is required")
+    row = get_screening(session, tenant_slug, screening_id)
+    if row is None:
+        return None
+    row.disposition = outcome
+    row.disposition_reason = reason.strip()
+    row.disposition_by = by.strip()
+    row.disposition_at = datetime.utcnow()
+    session.flush()
+    return row
+
+
+def pending_screening_count(session: Session, tenant_slug: str) -> int:
+    tenant = get_or_create_tenant(session, tenant_slug)
+    return session.scalar(select(func.count()).select_from(Screening).where(
+        Screening.tenant_id == tenant.id, _awaiting_review())) or 0
 
 
 # ---------------------------------------------------------------- customers
@@ -235,6 +285,10 @@ def screening_to_dict(s: Screening) -> Dict[str, Any]:
         "sanctions_match": s.sanctions_match, "risk_score": s.risk_score, "risk_level": s.risk_level,
         "match_count": s.match_count, "matches": s.matches, "list_version": s.list_version.label,
         "created_at": s.created_at.isoformat(),
+        "reference": s.customer.reference if s.customer else None,
+        "disposition": s.disposition, "disposition_reason": s.disposition_reason, "disposition_by": s.disposition_by,
+        "disposition_at": s.disposition_at.isoformat() if s.disposition_at else None,
+        "hours_to_close": round((s.disposition_at - s.created_at).total_seconds() / 3600, 1) if s.disposition_at else None,
     }
 
 

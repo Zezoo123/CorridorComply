@@ -1,0 +1,45 @@
+{% extends "_base.html" %}
+{% block title %}Screening #{{ s.id }} · {{ s.full_name }}{% endblock %}
+{% block content %}
+<p class="meta"><a href="/review">← Review queue</a></p>
+<h1>{{ s.full_name }} <span class="pill {{ s.risk_level }}">{{ s.risk_level }} · {{ s.risk_score }}</span></h1>
+<p class="meta">Screening #{{ s.id }} · {{ s.created_at[:16].replace('T',' ') }} · {{ s.channel }} · list version <code>{{ s.list_version }}</code>{% if s.reference %} · reference {{ s.reference }}{% endif %}</p>
+
+{% if s.disposition %}
+<div class="card" style="border-color:var(--accent);background:var(--accent-soft)"><strong>Disposition: {{ s.disposition }}</strong> by {{ s.disposition_by }} on {{ s.disposition_at[:16].replace('T',' ') }} ({{ s.hours_to_close }} h after screening)<div>{{ s.disposition_reason }}</div></div>
+{% else %}
+<div class="card">
+<h2 style="margin-top:0">Record your disposition</h2>
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+<form method="post" action="/review/screening/{{ s.id }}">
+  <div class="row">
+    <label style="margin:0"><input type="radio" name="outcome" value="cleared" required style="width:auto"> Clear: not the listed person</label>
+    <label style="margin:0"><input type="radio" name="outcome" value="confirmed" style="width:auto"> Confirm: listed person, no transaction, MLRO informed</label>
+    <label style="margin:0"><input type="radio" name="outcome" value="escalated" style="width:auto"> Escalate to the MLRO</label>
+  </div>
+  <label for="reason">Reason (required; this is what an inspector reads)</label>
+  <input id="reason" type="text" name="reason" required placeholder="e.g. Namesake: DOB 1990 vs listed 1953; QID verified in person" style="max-width:640px">
+  <label for="by">Reviewer name (required)</label>
+  <input id="by" type="text" name="by" required placeholder="Full name" style="max-width:320px">
+  <div style="margin-top:14px"><button type="submit">Save disposition</button></div>
+</form>
+</div>
+{% endif %}
+
+<h2>Customer as screened</h2>
+<table style="max-width:640px"><tr><th style="width:40%">Name</th><td>{{ s.full_name }}</td></tr><tr><th>Date of birth</th><td>{{ s.dob or '' }}</td></tr><tr><th>Nationality</th><td>{{ s.nationality or '' }}</td></tr><tr><th>Type</th><td>{{ s.entity_type }}</td></tr></table>
+
+<h2>{{ s.match_count }} match{{ '' if s.match_count == 1 else 'es' }}</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>Listed name</th><th>Matched on</th><th>Score</th><th>DOB</th><th>Nationality</th><th>List</th><th>Listed IDs</th></tr></thead>
+<tbody>{% for m in s.matches %}<tr>
+<td><strong>{{ m.sanctioned_name }}</strong>{% if m.aliases %}<div class="muted">aka {{ m.aliases[:4]|join('; ') }}</div>{% endif %}</td>
+<td>{{ m.matched_name }} <span class="pill info">{{ m.match_type }}</span>{% if m.screened_as %}<div class="muted">via shortened form "{{ m.screened_as }}" ({{ m.variant_similarity }})</div>{% endif %}</td>
+<td class="num">{{ m.similarity }} <span class="muted">{{ m.confidence }}</span></td>
+<td>{% if m.dob_agreement == 'exact' %}<span class="pill high">exact</span>{% elif m.dob_agreement == 'year' %}<span class="pill medium">year</span>{% elif m.dob_agreement == 'mismatch' %}<span class="pill low">differs</span>{% else %}<span class="muted">n/a</span>{% endif %}{% if m.dob %}<div class="muted">{{ m.dob|join(', ') }}</div>{% endif %}</td>
+<td>{% if m.country_match %}<span class="pill high">match</span>{% elif m.country_match == False %}<span class="pill low">differs</span>{% else %}<span class="muted">n/a</span>{% endif %}<div class="muted">{{ m.country or '' }}</div></td>
+<td>{{ m.source }}<div class="muted">{{ m.program or '' }}</div></td>
+<td class="muted">{{ m.id_numbers or '' }}</td>
+</tr>{% endfor %}</tbody></table></div>
+{% if s.reference %}<p style="margin-top:16px"><a class="btn secondary" href="/api/v1/customers/{{ s.reference }}/evidence">Export evidence bundle (JSON)</a> <span class="muted">Everything on file for this customer: screenings with dispositions, decisions, alerts, list versions.</span></p>{% endif %}
+{% endblock %}

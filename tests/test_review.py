@@ -72,3 +72,38 @@ def test_review_console_pages(client):
     assert "Nothing to review" in client.get("/review").text
     assert "Omar K" in client.get("/review?show=closed").text
     assert client.get("/review/9999").status_code == 404
+
+
+def test_screening_hits_are_reviewable(client):
+    csv_text = "customer_id,name,dob,nationality\nS-1,Muhammad Reza Naghdi,1953-03-11,IR\nS-2,Jonathan Whitfield,1979-02-03,GB\n"
+    r = client.post("/screen", data={"monitor": "1"}, files={"file": ("f.csv", csv_text, "text/csv")})
+    assert r.status_code == 200 and "/review/screening/" in r.text
+    sid = int(re.search(r"/review/screening/(\d+)", r.text).group(1))
+
+    queue = client.get("/review")
+    assert "Screening hits" in queue.text and "Muhammad Reza Naghdi" in queue.text
+    assert "Jonathan Whitfield" not in queue.text                          # clear rows are not cases
+    assert client.get("/api/v1/screenings?pending=true").json()["count"] == 1
+
+    page = client.get(f"/review/screening/{sid}")
+    assert page.status_code == 200 and "Record your disposition" in page.text and "NAQDI" in page.text
+    r = client.post(f"/review/screening/{sid}", data={"outcome": "cleared", "reason": "", "by": "A"})
+    assert r.status_code == 200 and "reason is required" in r.text
+    r = client.post(f"/review/screening/{sid}", data={"outcome": "cleared", "reason": "Namesake: passport DOB 1953-03-11 differs from all listed dates; verified in branch", "by": "Omar K"}, follow_redirects=True)
+    assert r.status_code == 200 and "Disposition: cleared" in r.text and "Omar K" in r.text
+
+    assert "Nothing to review" in client.get("/review").text
+    assert "Omar K" in client.get("/review?show=closed").text
+    assert client.get("/api/v1/screenings?pending=true").json()["count"] == 0
+    bundle = client.get("/api/v1/customers/S-1/evidence").json()
+    assert bundle["screenings"][0]["disposition"] == "cleared" and bundle["screenings"][0]["hours_to_close"] is not None
+
+    # API disposition on a second upload of the same hit
+    client.post("/screen", files={"file": ("f.csv", csv_text, "text/csv")})
+    sid2 = client.get("/api/v1/screenings?pending=true").json()["screenings"][0]["id"]
+    r = client.post(f"/api/v1/screenings/{sid2}/disposition", json={"outcome": "nope", "reason": "x", "by": "y"})
+    assert r.status_code == 422
+    r = client.post(f"/api/v1/screenings/{sid2}/disposition", json={"outcome": "escalated", "reason": "MLRO to decide", "by": "Reviewer"})
+    assert r.status_code == 200 and r.json()["disposition"] == "escalated"
+    assert client.post("/api/v1/screenings/99999/disposition", json={"outcome": "cleared", "reason": "x", "by": "y"}).status_code == 404
+    assert client.get("/review/screening/99999").status_code == 404

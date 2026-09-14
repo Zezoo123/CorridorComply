@@ -1,6 +1,6 @@
 # API reference
 
-Generated from the OpenAPI schema of CorridorComply 0.2.0. Interactive docs at `/docs`; raw schema at `/openapi.json`.
+Generated from the OpenAPI schema of CorridorComply 0.3.0. Interactive docs at `/docs`; raw schema at `/openapi.json`.
 
 All `/api/v1/*` routes require `X-API-Key` when keys are configured. Every request may carry `X-Request-ID`; the response echoes it and every audit event and stored record cites it.
 
@@ -112,6 +112,17 @@ Screening history for this tenant, newest first.
 Parameters:
 
 - `limit` (query): integer
+- `pending` (query): true: hits awaiting a reviewer; false: dispositioned
+
+### `POST /api/v1/screenings/{screening_id}/disposition`
+
+The reviewer's call on a screening hit: cleared, confirmed or escalated, with a mandatory reason and name.
+
+Parameters:
+
+- `screening_id` (path, required): integer
+
+Request body: `ScreeningDispositionIn`
 
 ### `GET /api/v1/screenings/{screening_id}`
 
@@ -134,6 +145,15 @@ Request body: `TenantSettings`
 ### `GET /api/v1/lists/current`
 
 Identity of the sanctions list currently loaded.
+
+### `GET /api/v1/lists/internal`
+
+The firm's own watchlist currently loaded (source INTERNAL).
+
+### `POST /api/v1/lists/internal`
+
+Replace the firm's internal watchlist with a CSV (columns: name, aliases, type, dob, nationality,
+id_numbers, reason, reference, listed_on). Rebuilds the combined list and reloads the screener.
 
 ## Corridor decisions
 
@@ -251,6 +271,10 @@ Parameters:
 
 Sample Csv
 
+### `POST /screen/internal-list`
+
+Upload Internal List Ui
+
 ### `GET /review`
 
 Review Queue
@@ -258,6 +282,22 @@ Review Queue
 Parameters:
 
 - `show` (query): string
+
+### `GET /review/screening/{screening_id}`
+
+Review Screening
+
+Parameters:
+
+- `screening_id` (path, required): integer
+
+### `POST /review/screening/{screening_id}`
+
+Review Screening Disposition
+
+Parameters:
+
+- `screening_id` (path, required): integer
 
 ### `GET /review/{decision_id}`
 
@@ -355,6 +395,7 @@ Health check endpoint
 
 - `full_name` (required): string
 - `country` (required): string
+- `entity_type`: string
 - `relationship`: string/null
 - `payout_channel`: string/null
 - `id_type`: string/null
@@ -371,6 +412,12 @@ Health check endpoint
 - `reason`: string
 - `by`: string
 
+### `Body_review_screening_disposition_review_screening__screening_id__post`
+
+- `outcome` (required): string
+- `reason`: string
+- `by`: string
+
 ### `Body_screen_upload_screen_post`
 
 - `file` (required): string
@@ -379,8 +426,17 @@ Health check endpoint
 - `nat_col`: string
 - `type_col`: string
 - `ref_col`: string
+- `idnum_col`: string
 - `default_type`: string
 - `monitor`: string
+
+### `Body_upload_internal_list_api_v1_lists_internal_post`
+
+- `file` (required): string
+
+### `Body_upload_internal_list_ui_screen_internal_list_post`
+
+- `file` (required): string
 
 ### `CombinedRiskRequest`
 
@@ -427,6 +483,8 @@ Health check endpoint
 - `actions` (required): array
 - `screening` (required): object
 - `screening_id`: integer/null
+- `beneficiary_screening`: object/null — The beneficiary screened against the same lists
+- `beneficiary_screening_id`: integer/null
 - `list_version`: string/null
 - `id_check`: object/null
 - `beneficiary_id_check`: object/null
@@ -500,6 +558,12 @@ Health check endpoint
 
 ### `RiskLevel`
 
+
+### `ScreeningDispositionIn`
+
+- `outcome` (required): string — cleared: not the listed person; confirmed: listed person; escalated: to the MLRO
+- `reason` (required): string
+- `by` (required): string
 
 ### `TenantSettings`
 

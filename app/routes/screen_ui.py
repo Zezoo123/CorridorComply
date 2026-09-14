@@ -117,7 +117,7 @@ def _remember(job: Dict[str, Any]) -> None:
 def _ctx(request: Request, session: Session, **extra):
     from ..services.lists import internal_watchlist_status
     open_alerts = len(records.alerts_for(session, UI_TENANT, status="open"))
-    pending = records.pending_count(session, UI_TENANT)
+    pending = records.pending_count(session, UI_TENANT) + records.pending_screening_count(session, UI_TENANT)
     try:
         internal = internal_watchlist_status()
     except Exception:
@@ -192,10 +192,11 @@ async def screen_upload(
         if monitor:
             customer = records.upsert_customer(session, UI_TENANT, ref, name, dob=dob or None,
                                                nationality=nat or None, entity_type=et, monitored=True)
-        records.save_screening(session, UI_TENANT, r, channel="web_upload", full_name=name, dob=dob or None,
-                               nationality=nat or None, entity_type=et, customer=customer)
+        saved = records.save_screening(session, UI_TENANT, r, channel="web_upload", full_name=name, dob=dob or None,
+                                       nationality=nat or None, entity_type=et, customer=customer)
         results.append({
             "row": i, "reference": ref, "name": name, "dob": dob or "", "nationality": nat or "",
+            "screening_id": saved.id,
             "id_number": id_number, "entity_type": et, "match": r["sanctions_match"], "risk_score": r["risk_score"],
             "risk_level": r["risk_level"].value, "matches": r["matches"], "details": r["details"],
         })
@@ -329,7 +330,33 @@ def _case_view(d) -> Dict[str, Any]:
 async def review_queue(request: Request, show: str = "pending", session: Session = Depends(get_session)):
     pending = [records.decision_to_dict(d) for d in records.decisions_for(session, UI_TENANT, limit=500, pending=True)]
     closed = [records.decision_to_dict(d) for d in records.decisions_for(session, UI_TENANT, limit=100, pending=False)]
-    return templates.TemplateResponse("review_queue.html", _ctx(request, session, pending=pending, closed=closed, show=show))
+    hits = [records.screening_to_dict(x) for x in records.screenings_for(session, UI_TENANT, limit=500, pending=True)]
+    hits_closed = [records.screening_to_dict(x) for x in records.screenings_for(session, UI_TENANT, limit=100, pending=False)]
+    return templates.TemplateResponse("review_queue.html", _ctx(request, session, pending=pending, closed=closed, show=show,
+                                                                hits=hits, hits_closed=hits_closed))
+
+
+@router.get("/review/screening/{screening_id}", response_class=HTMLResponse)
+async def review_screening(request: Request, screening_id: int, session: Session = Depends(get_session)):
+    x = records.get_screening(session, UI_TENANT, screening_id)
+    if x is None:
+        raise HTTPException(404, "Screening not found")
+    return templates.TemplateResponse("review_screening.html", _ctx(request, session, s=records.screening_to_dict(x), error=None))
+
+
+@router.post("/review/screening/{screening_id}", response_class=HTMLResponse)
+async def review_screening_disposition(request: Request, screening_id: int, outcome: str = Form(...), reason: str = Form(""),
+                                       by: str = Form(""), session: Session = Depends(get_session)):
+    x = records.get_screening(session, UI_TENANT, screening_id)
+    if x is None:
+        raise HTTPException(404, "Screening not found")
+    try:
+        records.screening_disposition(session, UI_TENANT, screening_id, outcome, reason, by)
+    except ValueError as e:
+        return templates.TemplateResponse("review_screening.html", _ctx(request, session, s=records.screening_to_dict(x), error=str(e)))
+    log_audit_event("screening_disposition", {"status": "success", "screening_id": screening_id, "disposition": outcome,
+                                              "reason": reason, "by": by, "channel": "web"}, request=request)
+    return RedirectResponse(f"/review/screening/{screening_id}", status_code=303)
 
 
 @router.get("/review/{decision_id}", response_class=HTMLResponse)

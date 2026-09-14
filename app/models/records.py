@@ -25,3 +25,11 @@ class AlertAck(BaseModel):
 class TenantSettings(BaseModel):
     webhook_url: Optional[str] = Field(None, max_length=500, description="POST target for new alerts")
     name: Optional[str] = Field(None, max_length=200)
+
+
+class ScreeningDispositionIn(BaseModel):
+    """The reviewer's call on a screening hit."""
+    outcome: str = Field(..., pattern="^(cleared|confirmed|escalated)$",
+                         description="cleared: not the listed person; confirmed: listed person; escalated: to the MLRO")
+    reason: str = Field(..., min_length=1, max_length=2000)
+    by: str = Field(..., min_length=1, max_length=200)
