@@ -19,6 +19,21 @@ class RiskFactorType(str, Enum):
     GENERAL_DATA_QUALITY = "general_data_quality"
 
 
+def _dob_differs(matches) -> bool:
+    """True when the strongest candidate is a name match whose date of birth disagrees."""
+    strongest = max(matches, key=lambda m: (m.get("match_type") == "identifier", m.get("similarity", 0)))
+    if strongest.get("match_type") == "identifier":
+        return False
+    agreement = strongest.get("dob_agreement") or {True: "exact", False: "mismatch"}.get(strongest.get("dob_match"), "unknown")
+    return agreement == "mismatch"
+
+
+def _partial_without_exact_dob(matches) -> bool:
+    """The strongest candidate matched on a subset of the listed name and the DOB agrees only by year."""
+    strongest = max(matches, key=lambda m: (m.get("match_type") == "identifier", m.get("similarity", 0)))
+    return strongest.get("match_type") == "partial" and strongest.get("dob_agreement") != "exact"
+
+
 class RiskEngine:
     """Unified risk calculation engine for AML and KYC"""
     
@@ -193,7 +208,8 @@ class RiskEngine:
         
         # Multiple matches increase risk, unless the best of them is itself weak: several
         # namesakes do not add up to one real match.
-        if len(matches) > 1 and cls.get_confidence_level(max(m.get("similarity", 0) for m in matches)) != "low":
+        if len(matches) > 1 and cls.get_confidence_level(max(m.get("similarity", 0) for m in matches)) != "low" \
+                and not (has_sanctions_match and _dob_differs(matches)):
             additional_risk = min(20, len(matches) * 5)
             risk_score += additional_risk
             risk_factors.append({
@@ -201,6 +217,27 @@ class RiskEngine:
                 "severity": "high" if additional_risk >= 15 else "medium",
                 "description": f"Multiple matches found ({len(matches)} matches)"
             })
+
+        # A name match whose full date of birth differs from the listed person's is a namesake
+        # until a reviewer says otherwise: never above medium, and low unless the name itself is
+        # a near-exact match. Identity-number matches are exempt (the number is the evidence).
+        if has_sanctions_match and matches and _partial_without_exact_dob(matches) and risk_score > 69:
+            risk_score = 69
+            risk_factors.append({
+                "type": RiskFactorType.AML_SANCTIONS.value,
+                "severity": "medium",
+                "description": "Capped: only part of the listed name was supplied and the exact date of birth is not confirmed"
+            })
+        if has_sanctions_match and matches and _dob_differs(matches):
+            strongest = max(matches, key=lambda m: (m.get("match_type") == "identifier", m.get("similarity", 0)))
+            cap = 69 if cls.get_confidence_level(strongest.get("similarity", 0)) == "high" else 39
+            if risk_score > cap:
+                risk_score = cap
+                risk_factors.append({
+                    "type": RiskFactorType.AML_SANCTIONS.value,
+                    "severity": "low",
+                    "description": "Capped: date of birth differs from the matching list entry"
+                })
         
         # Clamp to 0-100
         risk_score = max(0, min(100, risk_score))

@@ -45,7 +45,10 @@ class AMLService:
         for n, v in enumerate(variants):
             for c in index.screen(v, dob=dob, nationality=nationality, entity_type=entity_type, threshold=threshold,
                                   id_numbers=id_numbers if n == 0 else None):
-                if n > 0 and c.match_type != "identifier":
+                if c.match_type == "partial" and c.dob_agreement not in ("exact", "year"):
+                    # Fewer names than the entry holds is only evidence together with the date of birth.
+                    continue
+                if n > 0 and c.match_type not in ("identifier", "partial"):
                     # A hit found through a shortened form of the name is scored on the name the
                     # customer actually supplied. "Muhammad Imran Khan" shortened to "Muhammad Khan"
                     # equals the alias "Khan Muhammad" exactly, but the person supplied three names.
@@ -82,6 +85,8 @@ class AMLService:
                 details.append("Customer identity number appears on a list")
             if any(m["match_type"] == "alias" for m in matches):
                 details.append("Matched on a listed alias")
+            if any(m["match_type"] == "partial" for m in matches):
+                details.append("Name supplied is part of a listed name; date of birth agrees")
             if any(m["dob_agreement"] == "exact" for m in matches):
                 details.append("DOB match found")
             elif any(m["dob_agreement"] == "year" for m in matches):

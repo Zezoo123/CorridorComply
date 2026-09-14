@@ -26,6 +26,7 @@ from .sanctions_loader import SanctionsLoader
 logger = logging.getLogger(__name__)
 
 SIMILARITY_THRESHOLD = 85
+PARTIAL_MAX_SIMILARITY = 94   # a subset-of-the-name match never reaches the high-confidence band on its own
 ENTITY_TYPES = {"person": {"individual"}, "entity": {"entity", "organization", "government"},
                 "vessel": {"vessel"}, "any": None}
 
@@ -55,7 +56,7 @@ class Candidate:
     entry: Entry
     similarity: float
     matched_name: str
-    match_type: str              # "name", "alias" or "identifier"
+    match_type: str              # "name", "alias", "partial" (customer's tokens are a subset of the entry's) or "identifier"
     dob_agreement: str           # exact | year | mismatch | unknown
     nationality_agreement: str   # match | mismatch | unknown
     name_similarity: Optional[float] = None  # identifier hits: how well the name agrees as well
@@ -163,6 +164,7 @@ class ScreeningIndex:
         id_numbers: Optional[List[str]] = None,
     ) -> List[Candidate]:
         q = normalize(full_name)
+        q_tokens = [t for t in q.split() if t not in PARTICLES and len(t) >= 2]
         allowed = ENTITY_TYPES.get(entity_type, ENTITY_TYPES["person"])
         query_dob = parse_iso_date(dob)
         results: List[Candidate] = []
@@ -193,10 +195,29 @@ class ScreeningIndex:
                 s = fuzz.token_sort_ratio(q, v)
                 if s > best:
                     best, best_variant = s, v
-            if best < threshold:
+            match_type = None
+            if best >= threshold:
+                match_type = "name" if best_variant == e.variants[0] else "alias"
+            elif len(q_tokens) >= 2 and all(any(k in e.keys for k in blocking_keys(t)) for t in q_tokens):
+                # Every token the customer supplied is on the entry (exactly or as a transliteration
+                # skeleton) but the entry holds more names: "mohammed mujahid" against
+                # "Mohammed Yahya Mujahid". token_sort_ratio punishes the length difference, so
+                # score the overlap instead. All the tokens must sit in ONE listed name or alias,
+                # not be collected across several. Reported as "partial" and capped below the
+                # high-confidence band; the caller keeps it only when the date of birth agrees.
+                best_partial, best_variant = 0.0, ""
+                for v in e.variants:
+                    v_keys = blocking_keys(v)
+                    if not all(any(k in v_keys for k in blocking_keys(t)) for t in q_tokens):
+                        continue
+                    s = fuzz.token_set_ratio(q, v)
+                    if s > best_partial:
+                        best_partial, best_variant = s, v
+                if best_partial >= threshold:
+                    match_type, best = "partial", min(best_partial, PARTIAL_MAX_SIMILARITY)
+            if match_type is None:
                 continue
-            match_type = "name" if best_variant == e.variants[0] else "alias"
-            matched = e.name if match_type == "name" else next(
+            matched = e.name if best_variant == e.variants[0] else next(
                 (a for a in e.aliases if normalize(a) == best_variant), best_variant)
             results.append(Candidate(
                 entry=e, similarity=best, matched_name=matched, match_type=match_type,

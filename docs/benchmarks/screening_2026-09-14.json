@@ -1,0 +1,993 @@
+{
+  "list_version": "combined_sanctions_20260914_211428.csv@2026-09-14T21:14:29",
+  "run_at": "2026-09-14",
+  "seed": 7,
+  "recall": {
+    "as_listed": {
+      "asked": 600,
+      "found": 599,
+      "top": 496,
+      "recall": 0.9983,
+      "top1": 0.8267
+    },
+    "alias": {
+      "asked": 299,
+      "found": 299,
+      "top": 256,
+      "recall": 1.0,
+      "top1": 0.8562
+    },
+    "translit": {
+      "asked": 521,
+      "found": 499,
+      "top": 406,
+      "recall": 0.9578,
+      "top1": 0.7793
+    },
+    "reordered": {
+      "asked": 598,
+      "found": 598,
+      "top": 495,
+      "recall": 1.0,
+      "top1": 0.8278
+    },
+    "dropped_middle": {
+      "asked": 475,
+      "found": 463,
+      "top": 332,
+      "recall": 0.9747,
+      "top1": 0.6989
+    },
+    "typo": {
+      "asked": 565,
+      "found": 558,
+      "top": 460,
+      "recall": 0.9876,
+      "top1": 0.8142
+    }
+  },
+  "recall_sample": 600,
+  "misses": [
+    {
+      "form": "translit",
+      "query": "ali abd alnabi ahmed ebrahim m alshofa",
+      "listed": "ALSHOFA, ALI ABDULNABI AHMED EBRAHIM M",
+      "source": "OFAC",
+      "dob": "1991-07-25",
+      "got": []
+    },
+    {
+      "form": "translit",
+      "query": "mohammed iahya mujahid",
+      "listed": "Mohammed Yahya Mujahid",
+      "source": "EU",
+      "dob": "1961-03-12",
+      "got": []
+    },
+    {
+      "form": "translit",
+      "query": "mohammad iazdi",
+      "listed": "YAZDI, MOHAMMAD",
+      "source": "OFAC",
+      "dob": "1931-07-02",
+      "got": [
+        "AZIMI, MOHAMMAD NAZAR",
+        "AZIZ HAJMOHAM-MADI"
+      ]
+    },
+    {
+      "form": "as_listed",
+      "query": "HAJI NOORULLAH",
+      "listed": "NOORULLAH, HAJI",
+      "source": "OFAC",
+      "dob": "1970-04-16",
+      "got": []
+    },
+    {
+      "form": "translit",
+      "query": "nurullah",
+      "listed": "NOORULLAH, HAJI",
+      "source": "OFAC",
+      "dob": "1970-04-16",
+      "got": [
+        "Norullah Noori"
+      ]
+    },
+    {
+      "form": "typo",
+      "query": "norullah",
+      "listed": "NOORULLAH, HAJI",
+      "source": "OFAC",
+      "dob": "1970-04-16",
+      "got": [
+        "Norullah Noori"
+      ]
+    },
+    {
+      "form": "dropped_middle",
+      "query": "abdul murad",
+      "listed": "ABDUL HAKIM MURAD",
+      "source": "UK",
+      "dob": "1968-04-11",
+      "got": []
+    },
+    {
+      "form": "dropped_middle",
+      "query": "abu baasyir",
+      "listed": "Abu Bakar Ba'asyir",
+      "source": "EU",
+      "dob": "1938-08-17",
+      "got": []
+    },
+    {
+      "form": "translit",
+      "query": "paul dabi jr",
+      "listed": "DABY JR., PAUL",
+      "source": "OFAC",
+      "dob": "1985-07-06",
+      "got": []
+    },
+    {
+      "form": "dropped_middle",
+      "query": "paul jr",
+      "listed": "DABY JR., PAUL",
+      "source": "OFAC",
+      "dob": "1985-07-06",
+      "got": [
+        "Bol Malong"
+      ]
+    },
+    {
+      "form": "translit",
+      "query": "marial chanuong iol mangok",
+      "listed": "MARIAL CHANUONG YOL MANGOK",
+      "source": "UN",
+      "dob": "1960-01-01",
+      "got": []
+    },
+    {
+      "form": "translit",
+      "query": "ii xuan wu",
+      "listed": "WU, YI XUAN",
+      "source": "OFAC",
+      "dob": "1982-12-17",
+      "got": []
+    },
+    {
+      "form": "translit",
+      "query": "iolanda sofia cano alzate",
+      "listed": "CANO ALZATE, YOLANDA SOFIA",
+      "source": "OFAC",
+      "dob": "1957-04-25",
+      "got": []
+    },
+    {
+      "form": "dropped_middle",
+      "query": "abdul shah",
+      "listed": "ABDUL BAQI BASIR AWAL SHAH",
+      "source": "UN",
+      "dob": "1967-01-01",
+      "got": []
+    },
+    {
+      "form": "translit",
+      "query": "mikhail iuryevich avdeyev",
+      "listed": "AVDEYEV, MIKHAIL YURYEVICH",
+      "source": "OFAC",
+      "dob": "1977-03-06",
+      "got": [
+        "MIKHAIL YURIEVICH AVDEEV",
+        "\u041c\u0438\u0445\u0430\u0438\u043b \u042e\u0440\u044c\u0435\u0432\u0438\u0447 \u0410\u0412\u0414\u0415\u0415\u0412"
+      ]
+    },
+    {
+      "form": "dropped_middle",
+      "query": "abdel barakallah",
+      "listed": "BARAKALLAH, ABDEL RAHMAN JOMA'A",
+      "source": "OFAC",
+      "dob": "1969-01-01",
+      "got": []
+    },
+    {
+      "form": "typo",
+      "query": "vlaimir vladimirovich putin",
+      "listed": "PUTIN, VLADIMIR VLADIMIROVICH",
+      "source": "OFAC",
+      "dob": "1952-10-07",
+      "got": []
+    },
+    {
+      "form": "translit",
+      "query": "iunos umpara moklis",
+      "listed": "YUNOS UMPARA MOKLIS",
+      "source": "QA_NCTC",
+      "dob": "1966-07-07",
+      "got": []
+    },
+    {
+      "form": "dropped_middle",
+      "query": "al rouine",
+      "listed": "AL-AZHAR BEN KHALIFA BEN AHMED ROUINE",
+      "source": "QA_NCTC",
+      "dob": "1975-11-20",
+      "got": []
+    },
+    {
+      "form": "translit",
+      "query": "abdul rahman iasin",
+      "listed": "YASIN, ABDUL RAHMAN",
+      "source": "OFAC",
+      "dob": "1960-04-10",
+      "got": [
+        "OMAN ROCHMAN",
+        "OMAN ROCHMAN"
+      ]
+    },
+    {
+      "form": "dropped_middle",
+      "query": "abdul yasin",
+      "listed": "YASIN, ABDUL RAHMAN",
+      "source": "OFAC",
+      "dob": "1960-04-10",
+      "got": []
+    },
+    {
+      "form": "translit",
+      "query": "iong gil ri",
+      "listed": "RI, YONG GIL",
+      "source": "OFAC",
+      "dob": "1955-01-01",
+      "got": [
+        "\ub9ac\uc601\uae38"
+      ]
+    },
+    {
+      "form": "translit",
+      "query": "iong won jo",
+      "listed": "JO, YONG-WON",
+      "source": "OFAC",
+      "dob": "1957-10-24",
+      "got": []
+    },
+    {
+      "form": "dropped_middle",
+      "query": "abd kawari",
+      "listed": "ABD AL-LATIF BIN ABDALLAH SALIH MUHAMMAD AL-KAWARI",
+      "source": "UN",
+      "dob": "1973-09-28",
+      "got": []
+    },
+    {
+      "form": "typo",
+      "query": "sait saam safarbekovich gutseriev",
+      "listed": "SAIT-SALAM SAFARBEKOVICH GUTSERIEV",
+      "source": "UK",
+      "dob": "1959-07-25",
+      "got": []
+    },
+    {
+      "form": "dropped_middle",
+      "query": "abdul murad",
+      "listed": "Abdul Hakim MURAD",
+      "source": "EU",
+      "dob": "1968-04-11",
+      "got": []
+    },
+    {
+      "form": "typo",
+      "query": "alexander grigoryevich aramov",
+      "listed": "ALEXANDER GRIGORYEVICH ABRAMOV",
+      "source": "UK",
+      "dob": "1959-02-20",
+      "got": []
+    },
+    {
+      "form": "translit",
+      "query": "jang iong son",
+      "listed": "JANG YONG SON",
+      "source": "QA_NCTC",
+      "dob": "1957-02-20",
+      "got": []
+    },
+    {
+      "form": "translit",
+      "query": "tito aldemar ruano iandun",
+      "listed": "RUANO YANDUN, TITO ALDEMAR",
+      "source": "OFAC",
+      "dob": "1975-10-18",
+      "got": []
+    },
+    {
+      "form": "typo",
+      "query": "aexey aleksandrovich zhuravlyev",
+      "listed": "ZHURAVLYEV, ALEXEY ALEKSANDROVICH",
+      "source": "OFAC",
+      "dob": "1962-06-30",
+      "got": []
+    },
+    {
+      "form": "translit",
+      "query": "reza musawifar",
+      "listed": "MUSAVIFAR, SAYYED REZA",
+      "source": "OFAC",
+      "dob": "1958-07-23",
+      "got": []
+    },
+    {
+      "form": "typo",
+      "query": "reza musaifar",
+      "listed": "MUSAVIFAR, SAYYED REZA",
+      "source": "OFAC",
+      "dob": "1958-07-23",
+      "got": []
+    },
+    {
+      "form": "translit",
+      "query": "irina anatolievna iarovaya",
+      "listed": "YAROVAYA, IRINA ANATOLIEVNA",
+      "source": "OFAC",
+      "dob": "1966-10-17",
+      "got": [
+        "IRINA ANATOLYEVNA YAROVAYA",
+        "\u0418\u0440\u0438\u043d\u0430 \u0410\u043d\u0430\u0442\u043e\u043b\u044c\u0435\u0432\u043d\u0430 \u042f\u0440\u043e\u0432\u0430\u044f"
+      ]
+    },
+    {
+      "form": "translit",
+      "query": "ionghao wu",
+      "listed": "WU, YONGHAO",
+      "source": "OFAC",
+      "dob": "1992-01-28",
+      "got": []
+    },
+    {
+      "form": "translit",
+      "query": "iong nam jong",
+      "listed": "JONG, YONG NAM",
+      "source": "OFAC",
+      "dob": "1966-01-26",
+      "got": []
+    },
+    {
+      "form": "translit",
+      "query": "boris iurievich kovalchuk",
+      "listed": "KOVALCHUK, BORIS YURIEVICH",
+      "source": "OFAC",
+      "dob": "1977-12-01",
+      "got": [
+        "BORIS YURIEVICH KOVALCHUK",
+        "\u0411\u043e\u0440\u0438\u0441 \u042e\u0440\u044c\u0435\u0432\u0438\u0447 \u041a\u041e\u0412\u0410\u041b\u042c\u0427\u0423\u041a"
+      ]
+    },
+    {
+      "form": "translit",
+      "query": "abu iahya al iraqi",
+      "listed": "AL-IRAQI, ABU YAHYA",
+      "source": "OFAC",
+      "dob": "1972-07-01",
+      "got": []
+    },
+    {
+      "form": "dropped_middle",
+      "query": "abu iraqi",
+      "listed": "AL-IRAQI, ABU YAHYA",
+      "source": "OFAC",
+      "dob": "1972-07-01",
+      "got": []
+    },
+    {
+      "form": "typo",
+      "query": "alexander alexadrovich karelin",
+      "listed": "KARELIN, ALEXANDER ALEXANDROVICH",
+      "source": "OFAC",
+      "dob": "1967-09-19",
+      "got": []
+    },
+    {
+      "form": "dropped_middle",
+      "query": "abd sayed",
+      "listed": "ABD EL KADER MAHMOUD MOHAMED EL SAYED",
+      "source": "QA_NCTC",
+      "dob": "1962-12-26",
+      "got": []
+    },
+    {
+      "form": "translit",
+      "query": "waleed ahmed sein",
+      "listed": "ZEIN, WALEED AHMED",
+      "source": "OFAC",
+      "dob": "1991-03-14",
+      "got": []
+    },
+    {
+      "form": "dropped_middle",
+      "query": "kuk o",
+      "listed": "O, KUK-RYOL",
+      "source": "OFAC",
+      "dob": "1930-01-07",
+      "got": []
+    }
+  ],
+  "false_positives": {
+    "population": 3000,
+    "by_nationality": {
+      "BD": {
+        "names": 429,
+        "flagged": 20,
+        "flagged_medium_or_high": 4,
+        "rate": 0.0466,
+        "rate_medium_or_high": 0.0093
+      },
+      "EG": {
+        "names": 428,
+        "flagged": 35,
+        "flagged_medium_or_high": 10,
+        "rate": 0.0818,
+        "rate_medium_or_high": 0.0234
+      },
+      "IN": {
+        "names": 429,
+        "flagged": 4,
+        "flagged_medium_or_high": 0,
+        "rate": 0.0093,
+        "rate_medium_or_high": 0.0
+      },
+      "LK": {
+        "names": 428,
+        "flagged": 0,
+        "flagged_medium_or_high": 0,
+        "rate": 0.0,
+        "rate_medium_or_high": 0.0
+      },
+      "NP": {
+        "names": 428,
+        "flagged": 1,
+        "flagged_medium_or_high": 0,
+        "rate": 0.0023,
+        "rate_medium_or_high": 0.0
+      },
+      "PH": {
+        "names": 429,
+        "flagged": 1,
+        "flagged_medium_or_high": 1,
+        "rate": 0.0023,
+        "rate_medium_or_high": 0.0023
+      },
+      "PK": {
+        "names": 429,
+        "flagged": 20,
+        "flagged_medium_or_high": 9,
+        "rate": 0.0466,
+        "rate_medium_or_high": 0.021
+      }
+    },
+    "overall_rate": 0.027,
+    "overall_rate_medium_or_high": 0.008,
+    "top_offending_entries": [
+      [
+        "MOHAMMED AL-AHMED [UK]",
+        6
+      ],
+      [
+        "Mahmoud Ibraheem SA'IID [EU]",
+        4
+      ],
+      [
+        "WEHBE, MOHAMAD HASAN [OFAC]",
+        3
+      ],
+      [
+        "BASHIR MOHAMED MAHAMOUD [UN]",
+        3
+      ],
+      [
+        "ALI, AHMED MOHAMMED HAMED [OFAC]",
+        3
+      ],
+      [
+        "Mohammed Ali NASR [EU]",
+        3
+      ],
+      [
+        "KARIM ALI, ALI ABDUL [OFAC]",
+        2
+      ],
+      [
+        "Gud Mullah Mohammad Hassan [EU]",
+        2
+      ],
+      [
+        "MOHAMED AMIN MOSTAFA [UN]",
+        2
+      ],
+      [
+        "AHMAD MAHMOOD HASSAN [UN]",
+        2
+      ]
+    ],
+    "examples": [
+      {
+        "name": "Karim Adel Ali",
+        "dob": "1971-06-17",
+        "nationality": "EG",
+        "best": "KARIM ALI, ALI ABDUL",
+        "via": "KARIM, ALI ABDUL",
+        "similarity": 89.66,
+        "screened_as": null,
+        "dob_agreement": "mismatch",
+        "risk": "low",
+        "score": 39
+      },
+      {
+        "name": "Mohammad Arif Ali",
+        "dob": "1987-03-20",
+        "nationality": "PK",
+        "best": "JAFARI, MOHAMMAD ALI",
+        "via": "JAFARI, MOHAMMAD ALI",
+        "similarity": 88.89,
+        "screened_as": null,
+        "dob_agreement": "mismatch",
+        "risk": "low",
+        "score": 35
+      },
+      {
+        "name": "Mohammad Islam Ahmed",
+        "dob": "1982-02-03",
+        "nationality": "BD",
+        "best": "MOHAMMED AL-AHMED",
+        "via": "MOHAMMAD AL-AHMED",
+        "similarity": 86.49,
+        "screened_as": null,
+        "dob_agreement": "mismatch",
+        "risk": "low",
+        "score": 35
+      },
+      {
+        "name": "Hany Ahmed Nasser",
+        "dob": "1980-12-26",
+        "nationality": "EG",
+        "best": "NASSER AHMED MUTHANA",
+        "via": "NASSER AHMED MUTHANA",
+        "similarity": 86.49,
+        "screened_as": null,
+        "dob_agreement": "mismatch",
+        "risk": "low",
+        "score": 35
+      },
+      {
+        "name": "Mohamed Said Hassan",
+        "dob": "1970-07-04",
+        "nationality": "EG",
+        "best": "WEHBE, MOHAMAD HASAN",
+        "via": "WAHBI, MOHAMED HASSAN",
+        "similarity": 87.18,
+        "screened_as": null,
+        "dob_agreement": "mismatch",
+        "risk": "low",
+        "score": 35
+      },
+      {
+        "name": "Mohammad Ahmed Islam",
+        "dob": "1985-04-27",
+        "nationality": "BD",
+        "best": "MOHAMMED AL-AHMED",
+        "via": "MOHAMMAD AL-AHMED",
+        "similarity": 86.49,
+        "screened_as": null,
+        "dob_agreement": "mismatch",
+        "risk": "low",
+        "score": 35
+      },
+      {
+        "name": "Abdul Akter Ali",
+        "dob": "1979-11-20",
+        "nationality": "BD",
+        "best": "SA'ID AL-JAMAL",
+        "via": "ABU-ALI",
+        "similarity": 63.64,
+        "screened_as": "abdul ali",
+        "dob_agreement": "year",
+        "risk": "low",
+        "score": 35
+      },
+      {
+        "name": "Mohammed Rao",
+        "dob": "1999-06-17",
+        "nationality": "IN",
+        "best": "RA'D, MUHAMMAD HASAN",
+        "via": "RAAD, MOHAMMED",
+        "similarity": 88.0,
+        "screened_as": null,
+        "dob_agreement": "mismatch",
+        "risk": "low",
+        "score": 35
+      },
+      {
+        "name": "Mahmoud Mohamed Ali",
+        "dob": "1971-07-14",
+        "nationality": "EG",
+        "best": "BASHIR MOHAMED MAHAMOUD",
+        "via": "BASHIR MOHAMED MAHMOUD",
+        "similarity": 87.8,
+        "screened_as": null,
+        "dob_agreement": "mismatch",
+        "risk": "low",
+        "score": 35
+      },
+      {
+        "name": "Amr Salem",
+        "dob": "1986-07-21",
+        "nationality": "EG",
+        "best": "Amr SALEM",
+        "via": "Amr SALEM",
+        "similarity": 100.0,
+        "screened_as": null,
+        "dob_agreement": "mismatch",
+        "risk": "medium",
+        "score": 50
+      },
+      {
+        "name": "Mohammed Thomas",
+        "dob": "1971-05-06",
+        "nationality": "IN",
+        "best": "MOHAMMAD AMAN AKHUND",
+        "via": "MULLAH MOHAMMED OMAN",
+        "similarity": 85.71,
+        "screened_as": null,
+        "dob_agreement": "mismatch",
+        "risk": "low",
+        "score": 39
+      },
+      {
+        "name": "Hassan Tariq Ahmed",
+        "dob": "1967-09-10",
+        "nationality": "PK",
+        "best": "MOUKALLED, HASSAN AHMED",
+        "via": "MOUKALLED, HASSAN AHMED",
+        "similarity": 94,
+        "screened_as": null,
+        "dob_agreement": "year",
+        "risk": "medium",
+        "score": 65
+      },
+      {
+        "name": "Youssef Mahmoud Ali",
+        "dob": "1978-07-08",
+        "nationality": "EG",
+        "best": "YOUSSEF, ADNAN MAHMOUD",
+        "via": "YOUSSEF, ADNAN MAHMOUD",
+        "similarity": 85.0,
+        "screened_as": null,
+        "dob_agreement": "mismatch",
+        "risk": "low",
+        "score": 35
+      },
+      {
+        "name": "Mohammed Karim Ali",
+        "dob": "1983-09-01",
+        "nationality": "BD",
+        "best": "KARNIB, ALI MOHAMAD",
+        "via": "KARNIB, ALI MOHAMMED",
+        "similarity": 91.89,
+        "screened_as": null,
+        "dob_agreement": "mismatch",
+        "risk": "low",
+        "score": 35
+      },
+      {
+        "name": "Mahmoud Mohamed Ali",
+        "dob": "1989-11-10",
+        "nationality": "EG",
+        "best": "BASHIR MOHAMED MAHAMOUD",
+        "via": "BASHIR MOHAMED MAHMOUD",
+        "similarity": 87.8,
+        "screened_as": null,
+        "dob_agreement": "mismatch",
+        "risk": "low",
+        "score": 35
+      },
+      {
+        "name": "Mona Hassan Ibrahim",
+        "dob": "1981-10-14",
+        "nationality": "EG",
+        "best": "HASSAN DAHIR AWEYS",
+        "via": "MOHAMMED HASSAN IBRAHIM",
+        "similarity": 85.71,
+        "screened_as": null,
+        "dob_agreement": "mismatch",
+        "risk": "low",
+        "score": 35
+      },
+      {
+        "name": "Ahmed Ahmed",
+        "dob": "1995-06-22",
+        "nationality": "PK",
+        "best": "ALI, AHMED MOHAMMED HAMED",
+        "via": "AHMED, AHMED",
+        "similarity": 100.0,
+        "screened_as": null,
+        "dob_agreement": "mismatch",
+        "risk": "medium",
+        "score": 50
+      },
+      {
+        "name": "Md Khan",
+        "dob": "1995-09-10",
+        "nationality": "BD",
+        "best": "KHAN, MALI",
+        "via": "KHAN, MADI",
+        "similarity": 87.5,
+        "screened_as": null,
+        "dob_agreement": "mismatch",
+        "risk": "low",
+        "score": 39
+      },
+      {
+        "name": "Muhammad Ali Khan",
+        "dob": "1975-03-07",
+        "nationality": "PK",
+        "best": "KAZAN, ALI MUHAMMAD",
+        "via": "KAZAN, ALI MUHAMMAD",
+        "similarity": 91.43,
+        "screened_as": null,
+        "dob_agreement": "mismatch",
+        "risk": "low",
+        "score": 35
+      },
+      {
+        "name": "Mohamed Samir Ibrahim",
+        "dob": "1982-06-28",
+        "nationality": "EG",
+        "best": "Ibrahim Salih Mohammed AL-YACOUB",
+        "via": "Ibrahim Salih Mohamed",
+        "similarity": 90.48,
+        "screened_as": null,
+        "dob_agreement": "mismatch",
+        "risk": "low",
+        "score": 35
+      },
+      {
+        "name": "Muhammad Ali Rana",
+        "dob": "2001-12-25",
+        "nationality": "PK",
+        "best": "Mohammed Ali NASR",
+        "via": "Muhammad Ali NASR",
+        "similarity": 88.24,
+        "screened_as": null,
+        "dob_agreement": "mismatch",
+        "risk": "low",
+        "score": 39
+      },
+      {
+        "name": "Omar Mahmoud Ibrahim",
+        "dob": "1982-08-14",
+        "nationality": "EG",
+        "best": "Mahmoud Ibraheem SA'IID",
+        "via": "Mahmoud Ibrahim",
+        "similarity": 85.71,
+        "screened_as": null,
+        "dob_agreement": "mismatch",
+        "risk": "low",
+        "score": 35
+      },
+      {
+        "name": "Mahmoud Said Ibrahim",
+        "dob": "1987-05-27",
+        "nationality": "EG",
+        "best": "Mahmoud Ibraheem SA'IID",
+        "via": "Mahmoud Ibrahim Said",
+        "similarity": 100.0,
+        "screened_as": null,
+        "dob_agreement": "mismatch",
+        "risk": "medium",
+        "score": 50
+      },
+      {
+        "name": "Mohammed Rahman Khan",
+        "dob": "2001-06-17",
+        "nationality": "BD",
+        "best": "Gud Mullah Mohammad Hassan",
+        "via": "Mohammad Hasan Rahmani",
+        "similarity": 85.71,
+        "screened_as": null,
+        "dob_agreement": "mismatch",
+        "risk": "low",
+        "score": 35
+      },
+      {
+        "name": "Sara Mohamed Amin",
+        "dob": "1985-09-26",
+        "nationality": "EG",
+        "best": "MOHAMED AMIN MOSTAFA",
+        "via": "MOHAMED AMIN MOSTAFA",
+        "similarity": 86.49,
+        "screened_as": null,
+        "dob_agreement": "mismatch",
+        "risk": "low",
+        "score": 35
+      },
+      {
+        "name": "Mahmoud Hassan Fahmy",
+        "dob": "1985-06-20",
+        "nationality": "EG",
+        "best": "AHMAD MAHMOOD HASSAN",
+        "via": "AHMAD MAHMOUD HASSAN",
+        "similarity": 90.0,
+        "screened_as": null,
+        "dob_agreement": "mismatch",
+        "risk": "low",
+        "score": 35
+      },
+      {
+        "name": "Muhammad Ali Sheikh",
+        "dob": "1968-10-15",
+        "nationality": "PK",
+        "best": "SALEH, ALI MOHAMAD",
+        "via": "SALIH, ALI MUHAMMAD",
+        "similarity": 86.49,
+        "screened_as": null,
+        "dob_agreement": "mismatch",
+        "risk": "low",
+        "score": 39
+      },
+      {
+        "name": "Asad Ali Malik",
+        "dob": "1996-07-21",
+        "nationality": "PK",
+        "best": "MALIK ALIAA",
+        "via": "MALIK ALIAA",
+        "similarity": 88.0,
+        "screened_as": null,
+        "dob_agreement": "unknown",
+        "risk": "medium",
+        "score": 60
+      },
+      {
+        "name": "Tamer Mohamed Ali",
+        "dob": "1989-08-08",
+        "nationality": "EG",
+        "best": "Mohammed Ali NASR",
+        "via": "Mohammed Ali Naser",
+        "similarity": 85.71,
+        "screened_as": null,
+        "dob_agreement": "mismatch",
+        "risk": "low",
+        "score": 39
+      },
+      {
+        "name": "Habib Islam Ali",
+        "dob": "1983-09-09",
+        "nationality": "BD",
+        "best": "ALI HAKIM, BOUBAKER BEN HABIB BEN",
+        "via": "ALI HAKIM, BOUBAKER BEN HABIB BEN",
+        "similarity": 94,
+        "screened_as": null,
+        "dob_agreement": "year",
+        "risk": "medium",
+        "score": 69
+      },
+      {
+        "name": "Tamer Mahmoud Ibrahim",
+        "dob": "1986-07-10",
+        "nationality": "EG",
+        "best": "Mahmoud Ibraheem SA'IID",
+        "via": "Mahmoud Ibrahim Sa'eed",
+        "similarity": 85.71,
+        "screened_as": null,
+        "dob_agreement": "mismatch",
+        "risk": "low",
+        "score": 35
+      },
+      {
+        "name": "Hassan Ali Malik",
+        "dob": "1997-10-27",
+        "nationality": "PK",
+        "best": "MALIK HASAN",
+        "via": "MALIK HASSAN",
+        "similarity": 85.71,
+        "screened_as": null,
+        "dob_agreement": "unknown",
+        "risk": "medium",
+        "score": 65
+      },
+      {
+        "name": "Mahmoud Mohamed Ali",
+        "dob": "1993-08-05",
+        "nationality": "EG",
+        "best": "Punny Boy",
+        "via": "Mohamed Ali",
+        "similarity": 94,
+        "screened_as": null,
+        "dob_agreement": "year",
+        "risk": "medium",
+        "score": 69
+      },
+      {
+        "name": "Mohamed Said Hassan",
+        "dob": "1980-11-02",
+        "nationality": "EG",
+        "best": "WEHBE, MOHAMAD HASAN",
+        "via": "WAHBI, MOHAMED HASSAN",
+        "similarity": 87.18,
+        "screened_as": null,
+        "dob_agreement": "mismatch",
+        "risk": "low",
+        "score": 35
+      },
+      {
+        "name": "Mohamed Ahmed Abdelrahman",
+        "dob": "1994-08-21",
+        "nationality": "EG",
+        "best": "ALI, AHMED MOHAMMED HAMED",
+        "via": "ABDUREHMAN, AHMED MOHAMMED",
+        "similarity": 88.0,
+        "screened_as": null,
+        "dob_agreement": "mismatch",
+        "risk": "low",
+        "score": 35
+      },
+      {
+        "name": "Karim Mohamed Hassan",
+        "dob": "1978-03-03",
+        "nationality": "EG",
+        "best": "MOHAMMAD HASSAN KANJOU",
+        "via": "MOHAMED KANJO HASSAN",
+        "similarity": 85.0,
+        "screened_as": null,
+        "dob_agreement": "unknown",
+        "risk": "medium",
+        "score": 65
+      },
+      {
+        "name": "Mohammed Ali",
+        "dob": "1972-06-25",
+        "nationality": "BD",
+        "best": "\"1-P\"",
+        "via": "Ali Mohammed",
+        "similarity": 100.0,
+        "screened_as": null,
+        "dob_agreement": "mismatch",
+        "risk": "medium",
+        "score": 50
+      },
+      {
+        "name": "Mohammad Ahmed Akter",
+        "dob": "1982-07-17",
+        "nationality": "BD",
+        "best": "MOHAMMED AL-AHMED",
+        "via": "MOHAMMAD AL-AHMED",
+        "similarity": 86.49,
+        "screened_as": null,
+        "dob_agreement": "mismatch",
+        "risk": "low",
+        "score": 35
+      },
+      {
+        "name": "Jose Villanueva Castillo",
+        "dob": "1985-11-01",
+        "nationality": "PH",
+        "best": "PEREZ CASTILLO, WILMER JOSE",
+        "via": "PEREZ CASTILLO, WILMER JOSE",
+        "similarity": 94,
+        "screened_as": null,
+        "dob_agreement": "year",
+        "risk": "medium",
+        "score": 65
+      },
+      {
+        "name": "Muhammad Ahmed",
+        "dob": "1988-11-10",
+        "nationality": "PK",
+        "best": "AL-ADANI, ABU SULAYMAN",
+        "via": "AL-SAY'ARI, MUHAMMAD AHMED",
+        "similarity": 94,
+        "screened_as": null,
+        "dob_agreement": "year",
+        "risk": "medium",
+        "score": 69
+      }
+    ]
+  },
+  "ms_per_screen": 3.71,
+  "screens": 6058
+}
