@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from ..config import DEFAULT_TENANT
 from ..core.logger import log_audit_event
 from ..db.database import get_session
-from ..models.records import AlertAck, CustomerBatchIn, CustomerIn, TenantSettings
+from ..models.records import AlertAck, CustomerBatchIn, CustomerIn, ScreeningDispositionIn, TenantSettings
 from ..services import records
 from ..services.aml_service import AMLService
 
@@ -105,11 +105,28 @@ async def ack_alert(request: Request, alert_id: int, payload: AlertAck, session:
 
 # --------------------------------------------------------------- screenings
 @router.get("/screenings")
-async def list_screenings(request: Request, limit: int = Query(100, ge=1, le=1000), session: Session = Depends(get_session)):
+async def list_screenings(request: Request, limit: int = Query(100, ge=1, le=1000),
+                          pending: Optional[bool] = Query(None, description="true: hits awaiting a reviewer; false: dispositioned"),
+                          session: Session = Depends(get_session)):
     """Screening history for this tenant, newest first."""
     tenant = _tenant(request)
-    rows = records.screenings_for(session, tenant, limit=limit)
+    rows = records.screenings_for(session, tenant, limit=limit, pending=pending)
     return {"screenings": [records.screening_to_dict(s) for s in rows], "count": len(rows)}
+
+
+@router.post("/screenings/{screening_id}/disposition")
+async def screening_disposition(request: Request, screening_id: int, payload: ScreeningDispositionIn, session: Session = Depends(get_session)):
+    """The reviewer's call on a screening hit: cleared, confirmed or escalated, with a mandatory reason and name."""
+    from ..services.records import screening_disposition as _dispose
+    try:
+        row = _dispose(session, _tenant(request), screening_id, payload.outcome, payload.reason, payload.by)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    if row is None:
+        raise HTTPException(404, "Screening not found")
+    log_audit_event("screening_disposition", {"status": "success", "screening_id": screening_id, "disposition": payload.outcome,
+                                              "reason": payload.reason, "by": payload.by, "channel": "api"}, request=request)
+    return records.screening_to_dict(row)
 
 
 @router.get("/screenings/{screening_id}")

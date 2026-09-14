@@ -2,15 +2,37 @@
 {% block title %}Review queue · CorridorComply{% endblock %}
 {% block content %}
 <h1>Review queue</h1>
-<p class="meta">{{ pending|length }} decision{{ '' if pending|length == 1 else 's' }} waiting · {{ closed|length }} closed recently</p>
+<p class="meta">{{ hits|length }} screening hit{{ '' if hits|length == 1 else 's' }} and {{ pending|length }} corridor decision{{ '' if pending|length == 1 else 's' }} waiting · {{ hits_closed|length + closed|length }} closed recently</p>
 <div class="row" style="margin:0 0 16px">
   {% if show == 'pending' %}<a class="btn secondary" href="/review?show=closed">Show closed</a>{% else %}<a class="btn secondary" href="/review">Show pending</a>{% endif %}
   <a class="btn secondary" href="/screen">Screen a file</a>
 </div>
 {% set rows = pending if show == 'pending' else closed %}
-{% if not rows %}
-<div class="card"><strong>Nothing to review.</strong> <span class="muted">Decisions with outcome <em>review</em> or <em>reject</em> appear here until a reviewer records a disposition with a reason. Send a decision with <code>POST /api/v1/decision</code> or screen a file.</span></div>
-{% else %}
+{% set hrows = hits if show == 'pending' else hits_closed %}
+{% if not rows and not hrows %}
+<div class="card"><strong>Nothing to review.</strong> <span class="muted">Screening hits and decisions with outcome <em>review</em> or <em>reject</em> appear here until a reviewer records a disposition with a reason. Screen a file, or send a decision with <code>POST /api/v1/decision</code>.</span></div>
+{% endif %}
+{% if hrows %}
+<h2>Screening hits</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>#</th><th>Screened</th><th>Customer</th><th>Best match</th><th>Score</th><th>List</th>{% if show == 'closed' %}<th>Disposition</th><th>By</th><th>Hours</th>{% endif %}<th></th></tr></thead>
+<tbody>
+{% for x in hrows %}{% set m = x.matches[0] if x.matches else {} %}
+<tr>
+  <td class="num">{{ x.id }}</td>
+  <td class="num">{{ x.created_at[:16].replace('T',' ') }}</td>
+  <td><strong>{{ x.full_name }}</strong><div class="muted">{{ x.nationality or '' }}{% if x.dob %} · {{ x.dob }}{% endif %}{% if x.reference %} · {{ x.reference }}{% endif %}</div></td>
+  <td>{{ m.sanctioned_name }}{% if x.match_count > 1 %} <span class="muted">+{{ x.match_count - 1 }} more</span>{% endif %}<div class="muted">{{ m.matched_name }} · {{ m.match_type }}</div></td>
+  <td><span class="pill {{ x.risk_level }}">{{ x.risk_level }} · {{ x.risk_score }}</span></td>
+  <td>{{ m.source }}<div class="muted">{{ x.list_version[:40] }}</div></td>
+  {% if show == 'closed' %}<td><span class="pill {% if x.disposition == 'confirmed' %}high{% elif x.disposition == 'escalated' %}medium{% else %}low{% endif %}">{{ x.disposition }}</span><div class="muted">{{ x.disposition_reason }}</div></td><td>{{ x.disposition_by }}</td><td class="num">{{ x.hours_to_close }}</td>{% endif %}
+  <td><a class="btn secondary" href="/review/screening/{{ x.id }}">Open</a></td>
+</tr>
+{% endfor %}
+</tbody></table></div>
+{% endif %}
+{% if rows %}
+<h2>Corridor decisions</h2>
 <div class="tablewrap"><table>
 <thead><tr><th>#</th><th>Created</th><th>Customer</th><th>Corridor</th><th>Engine outcome</th><th>Score</th><th>Rules fired</th>{% if show == 'closed' %}<th>Disposition</th><th>By</th><th>Hours</th>{% endif %}<th></th></tr></thead>
 <tbody>

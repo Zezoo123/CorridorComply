@@ -26,7 +26,7 @@
   <td class="num">{{ r.dob }}</td>
   <td>{{ r.nationality }}</td>
   <td class="num">{{ r.id_number }}</td>
-  <td>{% if r.match %}<span class="pill {{ r.risk_level }}">{{ r.risk_level }} · {{ r.risk_score }}</span>{% else %}<span class="pill low">clear</span>{% endif %}</td>
+  <td>{% if r.match %}<span class="pill {{ r.risk_level }}">{{ r.risk_level }} · {{ r.risk_score }}</span>{% if r.screening_id %}<div><a href="/review/screening/{{ r.screening_id }}">review</a></div>{% endif %}{% else %}<span class="pill low">clear</span>{% endif %}</td>
   {% if r.matches %}{% set m = r.matches[0] %}
   <td>{{ m.sanctioned_name }}{% if r.matches|length > 1 %} <span class="muted">+{{ r.matches|length - 1 }} more</span>{% endif %}
     {% if r.matches|length > 1 %}<details><summary>show all</summary><ul style="padding-left:16px;margin:6px 0 0">{% for o in r.matches[1:] %}<li>{{ o.sanctioned_name }} <span class="muted">({{ o.source }}, {{ o.similarity }}, via {{ o.matched_name }})</span></li>{% endfor %}</ul></details>{% endif %}</td>
