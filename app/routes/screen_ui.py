@@ -258,6 +258,33 @@ async def alerts_ack(request: Request, alert_id: int, note: str = Form(""), sess
     return RedirectResponse("/alerts", status_code=303)
 
 
+@router.get("/screen/{job_id}/summary", response_class=HTMLResponse)
+async def screen_summary(request: Request, job_id: str, session: Session = Depends(get_session)):
+    """One-page printable summary of a screening run: what was screened, against which lists,
+    what was found and what the reviewer decided. The document a shadow run hands over."""
+    from collections import Counter
+    from datetime import datetime
+    from ..services.screening import get_index
+    job = _JOBS.get(job_id)
+    if not job:
+        raise HTTPException(404, "Report not found")
+    tenant = records.get_or_create_tenant(session, UI_TENANT)
+    index = get_index()
+    sources = sorted(Counter(e.source for e in index.entries).items())
+    hits = []
+    for r in job["results"]:
+        if not r["match"]:
+            continue
+        x = records.get_screening(session, UI_TENANT, r["screening_id"]) if r.get("screening_id") else None
+        hits.append({**r, "disposition": records.screening_to_dict(x) if x else None})
+    by_level = Counter(r["risk_level"] for r in job["results"] if r["match"])
+    return templates.TemplateResponse("screen_summary.html", {
+        "request": request, "job": job, "hits": hits, "by_level": by_level, "sources": sources,
+        "firm": tenant.name or tenant.slug, "generated": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "list_entries": len(index.entries),
+    })
+
+
 @router.get("/screen/{job_id}/report.csv")
 async def screen_report_csv(job_id: str):
     job = _JOBS.get(job_id)

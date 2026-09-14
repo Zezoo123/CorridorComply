@@ -64,3 +64,7 @@ Changes raise alerts at `/alerts` and, if configured, at your webhook.
 An API key, this guide, the data-handling note, the screening methodology, and
 the outsourcing clause. What we need from you: the customer file for the shadow
 run, and thirty minutes with the MLRO.
+
+## The shadow-run hand-over
+
+After screening a file, open **Printable summary** on the report page. It is a one-page document for the firm: what was screened, which lists and list version, the counts, every hit with the reviewer's disposition and reason, and signature lines. Print it or save it as PDF from the browser; keep the CSV with it for the row-by-row record.
