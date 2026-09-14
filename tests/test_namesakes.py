@@ -50,3 +50,37 @@ def test_full_name_match_with_wrong_dob_is_demoted_not_hidden(sanctions_data_dir
     assert r["sanctions_match"] is True
     assert r["risk_level"].value == "medium"
     assert any("differs" in d for d in r["details"])
+
+
+def test_name_match_with_wrong_dob_is_low_unless_near_exact(sanctions_data_dir):
+    # 100 on the name, DOB differs: medium at most (a data error on either side is possible)
+    r = AMLService.screen_sync("Mohammad Reza Naqdi", dob="1990-01-01", nationality="IR")
+    assert r["risk_level"].value == "medium" and r["risk_score"] <= 69
+    # a fuzzy name match (below 95) with a differing DOB is a namesake: low
+    add_list_entry(sanctions_data_dir, name="MOHAMMAD ALI JAFARI", dob="1950-05-05", nationality="IRAN", dataid="810")
+    r = AMLService.screen_sync("Mohammad Arif Ali", dob="1987-03-20", nationality="IR")
+    assert r["sanctions_match"] is True
+    assert r["risk_level"].value == "low", (r["risk_score"], [m["sanctioned_name"] for m in r["matches"]])
+    assert any("Capped" in d for d in r["details"])
+
+
+def test_partial_name_match_needs_the_date_of_birth(sanctions_data_dir):
+    add_list_entry(sanctions_data_dir, name="MOHAMMED YAHYA MUJAHID", dob="1970-06-01", nationality="PAKISTAN", dataid="820")
+    # fewer tokens than the list holds, DOB agrees: found, as a partial match, never high on the name alone
+    r = AMLService.screen_sync("Mohammed Mujahid", dob="1970-06-01", nationality="PK")
+    assert r["sanctions_match"] is True
+    m = r["matches"][0]
+    assert m["sanctioned_name"] == "MOHAMMED YAHYA MUJAHID" and m["match_type"] == "partial"
+    assert m["similarity"] <= 94 and m["dob_agreement"] == "exact"
+    assert any("part of a listed name" in d for d in r["details"])
+    # same tokens, year agrees only: still found, but never high
+    r = AMLService.screen_sync("Mujahid Mohammed", dob="1970-01-01", nationality="PK")
+    assert r["sanctions_match"] is True and r["risk_level"].value == "medium"
+    # tokens collected across different aliases of one entry do not make a partial match
+    add_list_entry(sanctions_data_dir, name="ONE-P", aliases="Mohammed; Iqbal; Khan", dob="1970-06-01", dataid="821")
+    assert AMLService.screen_sync("Mohammed Iqbal Khan", dob="1970-06-01", nationality="PK")["sanctions_match"] is False
+    # no DOB, or a differing DOB: a subset of common tokens is not evidence
+    assert AMLService.screen_sync("Mohammed Mujahid", nationality="PK")["sanctions_match"] is False
+    assert AMLService.screen_sync("Mohammed Mujahid", dob="1991-03-03", nationality="PK")["sanctions_match"] is False
+    # a single token is never enough
+    assert AMLService.screen_sync("Mujahid", dob="1970-06-01", nationality="PK")["sanctions_match"] is False
