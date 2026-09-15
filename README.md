@@ -47,13 +47,14 @@ python -m app.auth new-key acme-exchange                  # prints an API key on
 uvicorn app.main:app --reload                             # http://127.0.0.1:8000/screen and /docs
 ```
 
-Docker, screening-only by default (`--build-arg WITH_ML=1` adds OCR and face matching):
+On a firm's own machine, one command (Docker Desktop; lists baked in at build time, runs offline afterwards; see [docs/pilot/install.md](docs/pilot/install.md)):
 
 ```bash
-docker build -t corridorcomply .
-docker run -d -p 8000:8000 -v $(pwd)/cc-data:/data corridorcomply
-docker exec <container> python scripts/update_sanctions.py
+scripts/shadow_run.sh install      # builds with today's lists, creates .env, starts http://127.0.0.1:8010/screen
+scripts/shadow_run.sh update       # refresh the lists and re-screen everyone on file
 ```
+
+Plain Docker: `docker build -t corridorcomply .` then `docker run -d -p 127.0.0.1:8010:8000 -v $(pwd)/cc-data:/data -e UI_USERNAME=u -e UI_PASSWORD=p corridorcomply`. Add `--build-arg WITH_ML=1` for OCR and face matching, `--build-arg WITH_LISTS=0` to skip the list download.
 
 One decision:
 

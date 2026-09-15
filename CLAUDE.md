@@ -95,7 +95,10 @@ All endpoints accept `X-Request-ID` header for tracing. If not provided, generat
 Document and selfie images are passed as base64-encoded strings in request payloads. The `decode_base64_image()` function in `kyc.py` handles data URL prefixes.
 
 ### Sanctions Updates
-Run `scripts/update_sanctions.py --max-age-hours N` from a scheduler, then `python -m app.monitoring rescreen`. The startup auto-update still exists but is off by default (`SANCTIONS_AUTO_UPDATE_ENABLED=false`). A running API reloads a newer combined file on its own (`SANCTIONS_RELOAD_CHECK_SECONDS`). The loader ignores the `combined_sanctions_latest.csv` symlink and reports the dated file name as the list version.
+All pipeline scripts (`update_sanctions.py`, converters, combiner) honour `SANCTIONS_DATA_DIR` like the app. Run `scripts/update_sanctions.py --max-age-hours N` from a scheduler, then `python -m app.monitoring rescreen`. The startup auto-update still exists but is off by default (`SANCTIONS_AUTO_UPDATE_ENABLED=false`). A running API reloads a newer combined file on its own (`SANCTIONS_RELOAD_CHECK_SECONDS`). The loader ignores the `combined_sanctions_latest.csv` symlink and reports the dated file name as the list version.
+
+## Deployment
+`Dockerfile` bakes the lists into `/srv/lists` at build time (`WITH_LISTS=1`, default); `deploy/entrypoint.sh` seeds `/data/sanctions` on first start, runs `alembic upgrade head`, starts uvicorn. `docker-compose.yml` binds 127.0.0.1:8010 and keeps data in `./cc-data`. `scripts/shadow_run.sh install|start|stop|update|reset|status|logs` is the one-command client install (guide: `docs/pilot/install.md`). CI builds the image with `WITH_LISTS=0` and checks `/health`.
 
 ## Configuration
 

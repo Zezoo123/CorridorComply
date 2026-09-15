@@ -14,6 +14,7 @@ Output: app/data/sanctions/normalized/ofac_cons/ofac_cons_sanctions_YYYYMMDD.csv
 from __future__ import annotations
 
 import logging
+import os
 import sys
 from datetime import date
 from pathlib import Path
@@ -26,8 +27,9 @@ import convert_ofac_to_csv as ofac  # noqa: E402
 logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-RAW_DIR = PROJECT_ROOT / "app" / "data" / "sanctions" / "raw" / "ofac_cons"
-OUT_DIR = PROJECT_ROOT / "app" / "data" / "sanctions" / "normalized" / "ofac_cons"
+DATA_DIR = Path(os.getenv("SANCTIONS_DATA_DIR", str(PROJECT_ROOT / "app" / "data" / "sanctions")))  # same override the app uses
+RAW_DIR = DATA_DIR / "raw" / "ofac_cons"
+OUT_DIR = DATA_DIR / "normalized" / "ofac_cons"
 
 
 def main() -> int:

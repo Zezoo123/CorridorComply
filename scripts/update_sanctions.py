@@ -16,6 +16,7 @@ Can be run manually, scheduled via cron, or called from API startup.
 
 import requests
 import logging
+import os
 import sys
 import shutil
 from pathlib import Path
@@ -37,7 +38,9 @@ logger = logging.getLogger(__name__)
 # Project paths
 SCRIPT_DIR = Path(__file__).parent
 PROJECT_ROOT = SCRIPT_DIR.parent
-DATA_DIR = PROJECT_ROOT / "app" / "data" / "sanctions"
+# The same override the app uses (SANCTIONS_DATA_DIR); the converters and the combiner read it too,
+# so a deployment with the lists outside the code tree (Docker: /data/sanctions) updates in place.
+DATA_DIR = Path(os.getenv("SANCTIONS_DATA_DIR", str(PROJECT_ROOT / "app" / "data" / "sanctions")))
 RAW_DIR = DATA_DIR / "raw"
 NORMALIZED_DIR = DATA_DIR / "normalized"
 COMBINED_DIR = DATA_DIR / "combined"

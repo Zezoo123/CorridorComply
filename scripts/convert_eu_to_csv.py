@@ -6,6 +6,7 @@ This script loads the EU sanctions CSV file and converts it to a normalized
 CSV format compatible with the existing sanctions data.
 """
 
+import os
 import pandas as pd
 from pathlib import Path
 import logging
@@ -98,7 +99,7 @@ def load_eu_data() -> pd.DataFrame:
     """
     script_dir = Path(__file__).parent
     project_root = script_dir.parent
-    raw_dir = project_root / 'app' / 'data' / 'sanctions' / 'raw' / 'eu'
+    raw_dir = Path(os.getenv('SANCTIONS_DATA_DIR', str(project_root / 'app' / 'data' / 'sanctions'))) / 'raw' / 'eu'
     
     # Find the latest EU sanctions file (in case the name changes)
     eu_files = list(raw_dir.glob('*.csv'))
@@ -669,7 +670,7 @@ def main():
     logger.info("\n[3/3] Saving results...")
     script_dir = Path(__file__).parent
     project_root = script_dir.parent
-    output_dir = project_root / 'app' / 'data' / 'sanctions' / 'normalized' / 'eu'
+    output_dir = Path(os.getenv('SANCTIONS_DATA_DIR', str(project_root / 'app' / 'data' / 'sanctions'))) / 'normalized' / 'eu'
     output_dir.mkdir(parents=True, exist_ok=True)
     
     # Create timestamped output file

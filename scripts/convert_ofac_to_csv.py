@@ -721,8 +721,8 @@ def main():
     # Define paths
     script_dir = Path(__file__).parent
     project_root = script_dir.parent
-    raw_dir = project_root / "app" / "data" / "sanctions" / "raw" / "ofac"
-    output_dir = project_root / "app" / "data" / "sanctions" / "normalized" / "ofac"
+    raw_dir = Path(os.getenv("SANCTIONS_DATA_DIR", str(project_root / "app" / "data" / "sanctions"))) / "raw" / "ofac"
+    output_dir = Path(os.getenv("SANCTIONS_DATA_DIR", str(project_root / "app" / "data" / "sanctions"))) / "normalized" / "ofac"
     
     # Ensure output directory exists
     try:
