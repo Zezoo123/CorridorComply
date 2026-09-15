@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -32,8 +33,9 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-RAW_DIR = PROJECT_ROOT / 'app' / 'data' / 'sanctions' / 'raw' / 'qa_nctc'
-OUT_DIR = PROJECT_ROOT / 'app' / 'data' / 'sanctions' / 'normalized' / 'qa_nctc'
+DATA_DIR = Path(os.getenv("SANCTIONS_DATA_DIR", str(PROJECT_ROOT / 'app' / 'data' / 'sanctions')))  # same override the app uses
+RAW_DIR = DATA_DIR / 'raw' / 'qa_nctc'
+OUT_DIR = DATA_DIR / 'normalized' / 'qa_nctc'
 
 COLUMN_ORDER = [
     'source', 'source_file', 'dataid', 'reference_number', 'list_type', 'record_type', 'name',

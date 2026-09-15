@@ -5,6 +5,7 @@ Convert UN sanctions XML to CSV format
 This script parses the UN sanctions XML file (consolidatedLegacyByPRN.xml) and converts it to a normalized
 CSV format compatible with the existing EU and UK sanctions data.
 """
+import os
 import xml.etree.ElementTree as ET
 import csv
 import logging
@@ -517,8 +518,8 @@ def main() -> int:
         # Set up paths
         script_dir = Path(__file__).parent
         project_root = script_dir.parent
-        xml_file = project_root / "app" / "data" / "sanctions" / "raw" / "un" / "consolidatedLegacyByPRN.xml"
-        output_dir = project_root / "app" / "data" / "sanctions" / "normalized" / "un"
+        xml_file = Path(os.getenv("SANCTIONS_DATA_DIR", str(project_root / "app" / "data" / "sanctions"))) / "raw" / "un" / "consolidatedLegacyByPRN.xml"
+        output_dir = Path(os.getenv("SANCTIONS_DATA_DIR", str(project_root / "app" / "data" / "sanctions"))) / "normalized" / "un"
         
         # Ensure output directory exists
         output_dir.mkdir(parents=True, exist_ok=True)

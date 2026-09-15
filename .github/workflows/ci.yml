@@ -21,3 +21,17 @@ jobs:
           pip install -r requirements-dev.txt
       - name: Run tests (screening and API; ML tests are marked slow)
         run: pytest -q
+
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the screening image (no lists; the download is exercised elsewhere)
+        run: docker build --build-arg WITH_LISTS=0 -t corridorcomply:ci .
+      - name: Container starts and answers /health with an empty data volume
+        run: |
+          docker run -d --name cc -p 8000:8000 -e UI_USERNAME=u -e UI_PASSWORD=p corridorcomply:ci
+          for i in $(seq 1 30); do curl -fs http://127.0.0.1:8000/health && break; sleep 2; done
+          curl -fs http://127.0.0.1:8000/health
+          docker logs cc | tail -20

@@ -1,0 +1,19 @@
+# One-command install for a firm's own machine:
+#   cp deploy/.env.example .env   (set the login)
+#   docker compose up -d --build
+# The UI is then at http://127.0.0.1:8010/screen on this machine only (the port is bound to
+# localhost, so nothing on the network can reach it). Data stays in ./cc-data.
+services:
+  corridorcomply:
+    build:
+      context: .
+      args:
+        WITH_LISTS: "1"
+    image: corridorcomply:latest
+    env_file: .env
+    ports:
+      - "127.0.0.1:8010:8000"
+    volumes:
+      - ./cc-data:/data
+      - ./cc-data/logs:/srv/logs
+    restart: unless-stopped

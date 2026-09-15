@@ -6,6 +6,7 @@ This script combines normalized sanctions data from EU, UK, and UN sources
 into a single comprehensive sanctions list with a consistent format.
 """
 
+import os
 import pandas as pd
 from pathlib import Path
 import logging
@@ -177,7 +178,7 @@ def main() -> int:
         # Set up paths
         script_dir = Path(__file__).parent
         project_root = script_dir.parent
-        base_dir = project_root / "app" / "data" / "sanctions"
+        base_dir = Path(os.getenv("SANCTIONS_DATA_DIR", str(project_root / "app" / "data" / "sanctions")))
         output_dir = base_dir / "combined"
         
         # Initialize and run the combiner

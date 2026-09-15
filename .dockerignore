@@ -1,0 +1,16 @@
+.git
+.github
+venv
+.venv
+__pycache__
+*.pyc
+logs
+data
+debug
+app/data/sanctions
+app/data/sample_docs
+app/data/face_match_test_data
+tests
+docs
+*.log
+.DS_Store
