@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Screening summary · {{ job.filename }}</title>
+<style>
+@page{size:A4;margin:16mm 16mm 18mm}
+:root{--ink:#16212E;--ink2:#4A5666;--ink3:#7A8594;--line:#D5DCE4;--accent:#0F766E;--crit:#B42318;--warn:#B45309;--ok:#1F7A3E}
+*{box-sizing:border-box}body{margin:0;color:var(--ink);font:11pt/1.45 "IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;background:#fff}
+.page{max-width:820px;margin:0 auto;padding:28px 24px 40px}
+.toolbar{display:flex;gap:12px;margin:0 0 18px}.toolbar a,.toolbar button{font:inherit;font-weight:600;background:var(--accent);color:#fff;border:0;border-radius:4px;padding:9px 14px;cursor:pointer;text-decoration:none}
+.toolbar a.secondary{background:#fff;color:var(--accent);border:1px solid var(--accent)}
+h1{font-size:20pt;margin:0 0 2px;letter-spacing:-.01em}h2{font-size:12.5pt;margin:18px 0 6px;color:var(--accent)}
+.meta{color:var(--ink2);font-size:10pt;margin:0 0 14px}
+table{border-collapse:collapse;width:100%;font-size:9.5pt}th,td{text-align:left;vertical-align:top;padding:5px 7px;border-bottom:1px solid var(--line)}
+th{font-size:8.5pt;letter-spacing:.05em;text-transform:uppercase;color:var(--ink3);font-weight:500;background:#F1F4F7}
+.kv td:first-child{color:var(--ink2);width:34%}
+.stats{display:flex;gap:10px;margin:10px 0 6px}.stat{flex:1;border:1px solid var(--line);border-radius:5px;padding:8px 10px}.stat b{display:block;font-size:18pt}.stat span{font-size:8.5pt;color:var(--ink3);text-transform:uppercase;letter-spacing:.05em}
+.pill{display:inline-block;font-size:8pt;letter-spacing:.04em;text-transform:uppercase;padding:1px 7px;border-radius:999px;border:1px solid var(--line)}
+.high{color:var(--crit)}.medium{color:var(--warn)}.low{color:var(--ok)}
+.sig{display:flex;gap:28px;margin-top:26px}.sig div{flex:1;border-top:1px solid var(--ink);padding-top:5px;font-size:9.5pt;color:var(--ink2)}
+.note{font-size:9pt;color:var(--ink2)}
+@media print{.toolbar{display:none}.page{padding:0;max-width:none}}
+</style>
+</head>
+<body>
+<div class="page">
+<div class="toolbar"><button onclick="window.print()">Print / save as PDF</button><a class="secondary" href="/screen/{{ job.id }}">Back to the report</a><a class="secondary" href="/screen/{{ job.id }}/report.csv">Full results (CSV)</a></div>
+
+<h1>Sanctions screening summary</h1>
+<p class="meta">Prepared for <strong>{{ firm }}</strong> · {{ generated }} · report id {{ job.id }}</p>
+
+<table class="kv">
+<tr><td>File screened</td><td>{{ job.filename }} ({{ job.total }} rows)</td></tr>
+<tr><td>Lists</td><td>{% for src, n in sources %}{{ src }} ({{ '{:,}'.format(n) }}){% if not loop.last %} · {% endif %}{% endfor %}</td></tr>
+<tr><td>List version</td><td>{{ job.list_version }} · {{ '{:,}'.format(list_entries) }} entries</td></tr>
+<tr><td>Matched on</td><td>Names and listed aliases, transliteration variants, and identity numbers where supplied; date of birth and nationality compared with every candidate.</td></tr>
+</table>
+
+<div class="stats">
+  <div class="stat"><b>{{ job.total }}</b><span>Rows screened</span></div>
+  <div class="stat"><b class="{% if job.hits %}high{% else %}low{% endif %}">{{ job.hits }}</b><span>Rows with a hit</span></div>
+  <div class="stat"><b class="high">{{ by_level.get('high', 0) }}</b><span>High</span></div>
+  <div class="stat"><b class="medium">{{ by_level.get('medium', 0) }}</b><span>Medium</span></div>
+  <div class="stat"><b class="low">{{ by_level.get('low', 0) }}</b><span>Low</span></div>
+  <div class="stat"><b class="low">{{ job.total - job.hits }}</b><span>Clear</span></div>
+</div>
+
+<h2>Hits and reviewer dispositions</h2>
+{% if not hits %}<p class="note">No row matched any list entry.</p>{% else %}
+<table>
+<thead><tr><th>Ref</th><th>Customer</th><th>Listed name</th><th>List</th><th>Matched on</th><th>DOB</th><th>Risk</th><th>Disposition</th></tr></thead>
+<tbody>{% for r in hits %}{% set m = r.matches[0] %}{% set d = r.disposition %}
+<tr>
+<td>{{ r.reference }}</td>
+<td>{{ r.name }}<div class="note">{{ r.dob }}{% if r.nationality %} · {{ r.nationality }}{% endif %}{% if r.id_number %} · {{ r.id_number }}{% endif %}</div></td>
+<td>{{ m.sanctioned_name }}{% if r.matches|length > 1 %}<div class="note">+{{ r.matches|length - 1 }} other candidate{{ '' if r.matches|length == 2 else 's' }}</div>{% endif %}</td>
+<td>{{ m.source }}<div class="note">{{ m.program or '' }}</div></td>
+<td>{{ m.match_type }} {{ m.similarity }}{% if m.screened_as %}<div class="note">short form "{{ m.screened_as }}"</div>{% endif %}</td>
+<td>{{ m.dob_agreement }}{% if m.dob %}<div class="note">{{ m.dob|join(', ') }}</div>{% endif %}</td>
+<td><span class="pill {{ r.risk_level }}">{{ r.risk_level }} {{ r.risk_score }}</span></td>
+<td>{% if d and d.disposition %}<strong>{{ d.disposition }}</strong> by {{ d.disposition_by }}, {{ d.disposition_at[:16].replace('T',' ') }}<div class="note">{{ d.disposition_reason }}</div>{% else %}<span class="note">awaiting review</span>{% endif %}</td>
+</tr>{% endfor %}</tbody>
+</table>
+{% endif %}
+
+<h2>How to read this</h2>
+<p class="note">A hit means a customer's name, alias form or identity number resembles a list entry closely enough to need a reviewer's decision; it is not a finding that the customer is a listed person. <em>High</em> is a near-exact name or an identity number with agreeing date of birth or nationality; <em>medium</em> and <em>low</em> are name resemblances the data could not exclude. A name match whose full date of birth differs from the listed person's is reported low, or medium when the name is near-exact. The reviewer's disposition, reason and time are the record kept for inspection under Law No. 20 of 2019 (ten years). The full row-by-row result, including clear rows, is in the CSV.</p>
+
+<div class="sig"><div>Prepared by</div><div>Reviewed by (compliance officer / MLRO)</div><div>Date</div></div>
+</div>
+</body>
+</html>

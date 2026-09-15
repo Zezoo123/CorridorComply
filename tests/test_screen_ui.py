@@ -1,5 +1,6 @@
 """Tests for the screening upload UI and batch API."""
 import io
+import re
 
 from app.routes.screen_ui import detect_columns, read_table
 
@@ -124,3 +125,21 @@ def test_batch_api(client):
     assert by_ref["b"]["matches"][0]["dob_agreement"] == "exact"
     assert by_ref["c"]["matches"][0]["record_type"] == "entity"
     assert body["list_version"]
+
+
+def test_printable_summary(client):
+    r = client.post("/screen", files={"file": ("customers.csv", SAMPLE_CSV, "text/csv")})
+    job_id = r.text.split("report id <code>")[1].split("</code>")[0]
+    assert f"/screen/{job_id}/summary" in r.text
+    s = client.get(f"/screen/{job_id}/summary")
+    assert s.status_code == 200
+    assert "Sanctions screening summary" in s.text and "window.print()" in s.text
+    assert "MOHAMMAD REZA NAQDI" in s.text and "BANK MELLAT" in s.text
+    assert "awaiting review" in s.text
+    assert "OFAC (" in s.text and "UN (" in s.text          # sources with entry counts
+    # a disposition recorded on the case shows on the summary
+    sid = int(re.search(r"/review/screening/(\d+)", r.text).group(1))
+    client.post(f"/review/screening/{sid}", data={"outcome": "cleared", "reason": "Namesake; DOB differs", "by": "Omar K"})
+    s = client.get(f"/screen/{job_id}/summary")
+    assert "cleared" in s.text and "Omar K" in s.text and "Namesake; DOB differs" in s.text
+    assert client.get("/screen/nope/summary").status_code == 404
